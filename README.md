@@ -76,6 +76,34 @@ npm run dev
 
 Vite 개발 서버는 `/api`와 `/ws`를 `localhost:3000`으로 proxy합니다. 그래서 브라우저 코드는 현재 접속 host 기준으로 `ws://<host>/ws/telemetry`를 만들고도 개발/운영에서 같은 방식으로 동작합니다.
 
+## 의존성 설치 없이 바로 실행
+
+npm registry 접근이 막힌 환경에서도 Node.js만 있으면 standalone 모드로 바로 서버와 대시보드를 실행할 수 있습니다.
+
+```powershell
+npm.cmd run standalone
+```
+
+이 모드는 Node 내장 모듈만 사용합니다.
+
+- UDP 수신: `0.0.0.0:5300`
+- HTTP/WebSocket: `0.0.0.0:3000`
+- API: `/api/status`, `/api/telemetry`
+- WebSocket: `/ws/telemetry`
+- 브라우저 대시보드: `http://localhost:3000`
+
+mock telemetry로 바로 화면을 보고 싶으면 `.env`에서 다음 값을 사용합니다.
+
+```env
+MOCK_TELEMETRY=true
+```
+
+standalone 서버가 실제로 뜨고 API가 응답하는지 자동 확인하려면:
+
+```powershell
+npm.cmd run smoke:standalone
+```
+
 ## 운영 빌드 실행
 
 ```powershell

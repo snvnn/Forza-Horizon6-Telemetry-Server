@@ -12,6 +12,8 @@
     "build": "npm run build -w @forza-telemetry/dashboard && npm run build -w @forza-telemetry/server",
     "typecheck": "npm run typecheck -w @forza-telemetry/server && npm run typecheck -w @forza-telemetry/dashboard",
     "validate:env": "scripts\\validate-env.cmd",
+    "standalone": "scripts\\standalone.cmd",
+    "smoke:standalone": "scripts\\smoke-standalone.cmd",
     "start": "npm run start -w @forza-telemetry/server"
   },
   "engines": {
