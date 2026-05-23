@@ -44,6 +44,25 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
 
 이 프로젝트는 `.npmrc`에서 npm cache를 프로젝트 내부 `.npm-cache`로 지정합니다. 제한된 Windows 환경이나 Codex 작업 폴더에서도 npm이 사용자 `AppData` cache 권한 문제로 실패하지 않게 하기 위한 설정입니다.
 
+## 실행 환경 검증
+
+의존성 설치 전에도 Node.js, npm, npm cache, HTTP/UDP 포트, LAN IPv4, npm registry 접근을 확인할 수 있습니다.
+
+```powershell
+npm.cmd run validate:env
+```
+
+정상 예시는 다음 항목들이 `PASS`로 표시됩니다.
+
+- Node.js
+- npm
+- npm cache
+- HTTP port bind: `0.0.0.0:3000`
+- UDP port bind: `0.0.0.0:5300`
+- LAN IPv4
+
+Codex 샌드박스처럼 외부 네트워크가 막힌 환경에서는 `npm registry`가 `WARN`으로 표시될 수 있습니다. 일반 PowerShell에서 이 항목이 실패하면 방화벽, 프록시, VPN, 보안 프로그램의 npm registry 접속 차단을 확인합니다.
+
 ## 개발 실행
 
 ```powershell
