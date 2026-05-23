@@ -1,0 +1,19 @@
+{
+  "name": "forza-telemetry-web",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "npm run dev -w @forza-telemetry/server",
+    "dev:dashboard": "npm run dev -w @forza-telemetry/dashboard",
+    "build": "npm run build -w @forza-telemetry/dashboard && npm run build -w @forza-telemetry/server",
+    "typecheck": "npm run typecheck -w @forza-telemetry/server && npm run typecheck -w @forza-telemetry/dashboard",
+    "start": "npm run start -w @forza-telemetry/server"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
