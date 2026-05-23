@@ -10,7 +10,7 @@ const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const env = { ...readEnv(resolve(projectRoot, ".env")), ...process.env };
 
 const config = {
-  udpPort: parsePort(env.UDP_PORT, 5300),
+  udpPort: parsePort(env.UDP_PORT, 5400),
   httpPort: parsePort(env.HTTP_PORT, 3000),
   host: env.HOST?.trim() || "0.0.0.0",
   broadcastHz: parseHz(env.TELEMETRY_BROADCAST_HZ, 60),
@@ -83,164 +83,290 @@ function updateSnapshot(snapshot) {
   latest = { ...snapshot, timestamp: snapshot.timestamp || lastPacketAt, connected: true };
 }
 
-function parseForzaPacket(packet) {
-  const sled = {
-    engineMaxRpm: 8,
-    currentRpm: 16,
-    accelX: 20,
-    accelY: 24,
-    accelZ: 28,
-    velocityX: 32,
-    velocityY: 36,
-    velocityZ: 40
-  };
+const SLED_OFFSETS = {
+  engineMaxRpm: 8,
+  currentRpm: 16,
+  accelX: 20,
+  accelY: 24,
+  accelZ: 28,
+  velocityX: 32,
+  velocityY: 36,
+  velocityZ: 40
+};
 
-  function dashOffsets(name, shift) {
-    return {
-      name,
+const DASH_PROFILES = [
+  // FH6 has a single fixed 324-byte packet. It inserts CarGroup,
+  // SmashableVelDiff, and SmashableMass after NumCylinders, which shifts the
+  // Dash-like fields by 12 bytes compared with Motorsport Dash.
+  createDashProfile("forza-horizon-6-data-out", 12, 324, 324, 0),
+  createDashProfile("forza-motorsport-dash", 0, 311, 311, 1)
+];
+
+function createDashProfile(name, dashShift, minimumLength, expectedLength, priority) {
+  return {
+    name,
+    dashShift,
+    minimumLength,
+    expectedLength,
+    priority,
+    offsets: {
       engineMaxRpm: 8,
       currentRpm: 16,
       accelX: 20,
       accelY: 24,
       accelZ: 28,
-      speedMs: 244 + shift,
-      powerW: 248 + shift,
-      torqueNm: 252 + shift,
-      tireTempFrontLeft: 256 + shift,
-      tireTempFrontRight: 260 + shift,
-      tireTempRearLeft: 264 + shift,
-      tireTempRearRight: 268 + shift,
-      boost: 272 + shift,
-      throttle: 303 + shift,
-      brake: 304 + shift,
-      clutch: 305 + shift,
-      handbrake: 306 + shift,
-      gear: 307 + shift,
-      steer: 308 + shift
-    };
-  }
-
-  const candidates = [
-    dashOffsets("forza-horizon-dash", 12),
-    dashOffsets("forza-dash", 0)
-  ];
-
-  const offsets = candidates
-    .map((candidate) => ({ candidate, score: scoreOffsets(packet, candidate) }))
-    .sort((left, right) => right.score - left.score)[0];
-
-  if (!offsets || offsets.score < 0) {
-    const velocityX = f32(packet, sled.velocityX);
-    const velocityY = f32(packet, sled.velocityY);
-    const velocityZ = f32(packet, sled.velocityZ);
-    const speedMs = Math.hypot(velocityX, velocityY, velocityZ);
-
-    lastPacketInfo = { length: packet.length, format: "forza-sled", dashShift: null };
-
-    return {
-      timestamp: Date.now(),
-      connected: true,
-      vehicle: {
-        speedKmh: Math.max(0, speedMs * 3.6),
-        rpm: Math.max(0, f32(packet, sled.currentRpm)),
-        maxRpm: Math.max(0, f32(packet, sled.engineMaxRpm)),
-        gear: 0
-      },
-      input: {
-        throttle: 0,
-        brake: 0,
-        steer: 0
-      },
-      motion: {
-        accelX: f32(packet, sled.accelX),
-        accelY: f32(packet, sled.accelY),
-        accelZ: f32(packet, sled.accelZ)
-      }
-    };
-  }
-
-  const o = offsets.candidate;
-  lastPacketInfo = {
-    length: packet.length,
-    format: o.name,
-    dashShift: o.speedMs - 244
-  };
-
-  const snapshot = {
-    timestamp: Date.now(),
-    connected: true,
-    vehicle: {
-      speedKmh: Math.max(0, f32(packet, o.speedMs) * 3.6),
-      rpm: Math.max(0, f32(packet, o.currentRpm)),
-      maxRpm: Math.max(0, f32(packet, o.engineMaxRpm)),
-      gear: normalizeGear(u8(packet, o.gear)),
-      powerKw: f32(packet, o.powerW) / 1000,
-      torqueNm: clampNonNegative(f32(packet, o.torqueNm)),
-      boost: clampNonNegative(f32(packet, o.boost))
-    },
-    input: {
-      throttle: ratio(u8(packet, o.throttle)),
-      brake: ratio(u8(packet, o.brake)),
-      clutch: ratio(u8(packet, o.clutch)),
-      steer: Math.max(-1, Math.min(1, i8(packet, o.steer) / 127)),
-      handbrake: ratio(u8(packet, o.handbrake))
-    },
-    tires: {
-      frontLeftTemp: f32(packet, o.tireTempFrontLeft),
-      frontRightTemp: f32(packet, o.tireTempFrontRight),
-      rearLeftTemp: f32(packet, o.tireTempRearLeft),
-      rearRightTemp: f32(packet, o.tireTempRearRight)
-    },
-    motion: {
-      accelX: f32(packet, o.accelX),
-      accelY: f32(packet, o.accelY),
-      accelZ: f32(packet, o.accelZ)
+      speedMs: 244 + dashShift,
+      powerW: 248 + dashShift,
+      torqueNm: 252 + dashShift,
+      tireTempFrontLeft: 256 + dashShift,
+      tireTempFrontRight: 260 + dashShift,
+      tireTempRearLeft: 264 + dashShift,
+      tireTempRearRight: 268 + dashShift,
+      boost: 272 + dashShift,
+      throttle: 303 + dashShift,
+      brake: 304 + dashShift,
+      clutch: 305 + dashShift,
+      handbrake: 306 + dashShift,
+      gear: 307 + dashShift,
+      steer: 308 + dashShift
     }
   };
+}
+
+function parseForzaPacket(packet) {
+  const candidates = DASH_PROFILES.map((profile) => tryParseDashProfile(packet, profile)).sort(
+    (left, right) =>
+      Number(right.accepted) - Number(left.accepted) ||
+      right.score - left.score ||
+      left.profile.priority - right.profile.priority
+  );
+  const selected = candidates.find((candidate) => candidate.accepted && candidate.snapshot);
+
+  if (selected?.snapshot) {
+    lastPacketInfo = toPacketInfo(packet, selected.profile.name, selected.profile.dashShift, true, [], candidates);
+
+    if (config.debugPacket) {
+      console.log("[packet]", {
+        ...lastPacketInfo,
+        speedKmh: selected.snapshot.vehicle.speedKmh,
+        rpm: selected.snapshot.vehicle.rpm,
+        gear: selected.snapshot.vehicle.gear
+      });
+    }
+
+    return selected.snapshot;
+  }
+
+  const fallback = parseSledFallback(packet);
+  const errors = candidates.flatMap((candidate) =>
+    candidate.errors.map((error) => `${candidate.profile.name}: ${error}`)
+  );
+  lastPacketInfo = toPacketInfo(packet, "forza-sled-fallback", null, true, errors, candidates);
 
   if (config.debugPacket) {
     console.log("[packet]", {
-      length: packet.length,
-      format: o.name,
-      dashShift: o.speedMs - 244,
-      speedKmh: snapshot.vehicle.speedKmh,
-      rpm: snapshot.vehicle.rpm,
-      gear: snapshot.vehicle.gear
+      ...lastPacketInfo,
+      speedKmh: fallback.vehicle.speedKmh,
+      rpm: fallback.vehicle.rpm
     });
   }
 
-  return snapshot;
+  return fallback;
 }
 
-function scoreOffsets(packet, offsets) {
+function tryParseDashProfile(packet, profile) {
+  const errors = [];
+  const warnings = [];
+
+  if (profile.expectedLength != null && packet.length !== profile.expectedLength) {
+    return {
+      profile,
+      accepted: false,
+      score: 0,
+      errors: [`length=${packet.length} expected ${profile.expectedLength}`],
+      warnings
+    };
+  }
+
+  if (packet.length < profile.minimumLength) {
+    return {
+      profile,
+      accepted: false,
+      score: 0,
+      errors: [`length=${packet.length} shorter than ${profile.minimumLength}`],
+      warnings
+    };
+  }
+
   try {
-    const speedKmh = f32(packet, offsets.speedMs) * 3.6;
-    const powerKw = f32(packet, offsets.powerW) / 1000;
-    const torqueNm = f32(packet, offsets.torqueNm);
-    const tireTemps = [
-      f32(packet, offsets.tireTempFrontLeft),
-      f32(packet, offsets.tireTempFrontRight),
-      f32(packet, offsets.tireTempRearLeft),
-      f32(packet, offsets.tireTempRearRight)
+    const o = profile.offsets;
+    const engineMaxRpm = f32(packet, o.engineMaxRpm);
+    const currentRpm = f32(packet, o.currentRpm);
+    const speedKmh = f32(packet, o.speedMs) * 3.6;
+    const powerKw = f32(packet, o.powerW) / 1000;
+    const torqueNm = f32(packet, o.torqueNm);
+    const boost = f32(packet, o.boost);
+    const tireTempsF = [
+      f32(packet, o.tireTempFrontLeft),
+      f32(packet, o.tireTempFrontRight),
+      f32(packet, o.tireTempRearLeft),
+      f32(packet, o.tireTempRearRight)
     ];
-    const boost = f32(packet, offsets.boost);
-    const gearRaw = u8(packet, offsets.gear);
+    const gearRaw = u8(packet, o.gear);
+    const values = {
+      speedKmh,
+      engineMaxRpm,
+      currentRpm,
+      powerKw,
+      torqueNm,
+      boost,
+      tireTempFrontLeftF: tireTempsF[0],
+      tireTempFrontRightF: tireTempsF[1],
+      tireTempRearLeftF: tireTempsF[2],
+      tireTempRearRightF: tireTempsF[3],
+      gearRaw,
+      throttleRaw: u8(packet, o.throttle),
+      brakeRaw: u8(packet, o.brake),
+      clutchRaw: u8(packet, o.clutch),
+      steerRaw: i8(packet, o.steer)
+    };
 
     let score = 0;
-    if (isReasonable(speedKmh, 0, 650)) score += 3;
-    if (isReasonable(powerKw, -1500, 2500)) score += 2;
-    if (isReasonable(torqueNm, -2000, 3000)) score += 2;
-    score += tireTemps.filter((value) => isReasonable(value, -50, 350)).length;
-    if (isReasonable(boost, -5, 20)) score += 1;
-    if (gearRaw >= 0 && gearRaw <= 12) score += 2;
-    return score;
-  } catch {
-    return -1;
+    if (validateRange(warnings, "engineMaxRpm", engineMaxRpm, 100, 25000)) score += 2;
+    if (validateRange(warnings, "currentRpm", currentRpm, 0, 25000)) score += 2;
+    if (engineMaxRpm > 0 && currentRpm > engineMaxRpm * 1.5) {
+      warnings.push(`currentRpm=${currentRpm} too high for engineMaxRpm=${engineMaxRpm}`);
+    } else {
+      score += 1;
+    }
+    if (validateRange(warnings, "speedKmh", speedKmh, -1, 650)) score += 3;
+    if (validateRange(warnings, "powerKw", powerKw, -2500, 5000)) score += 1;
+    if (validateRange(warnings, "torqueNm", torqueNm, -2000, 5000)) score += 1;
+    if (validateRange(warnings, "boost", boost, -30, 60)) score += 2;
+    tireTempsF.forEach((tempF, index) => {
+      if (validateRange(warnings, `tireTempF[${index}]`, tempF, -40, 450)) score += 1;
+    });
+    if (gearRaw <= 12) {
+      score += 2;
+    } else {
+      warnings.push(`gearRaw=${gearRaw} outside 0..12`);
+    }
+
+    return {
+      profile,
+      accepted: true,
+      score,
+      errors,
+      warnings,
+      values,
+      snapshot: {
+        timestamp: Date.now(),
+        connected: true,
+        vehicle: {
+          speedKmh: clampNonNegative(zeroSmall(finiteOr(speedKmh))),
+          rpm: clampNonNegative(finiteOr(currentRpm)),
+          maxRpm: clampNonNegative(finiteOr(engineMaxRpm)),
+          gear: normalizeGear(gearRaw),
+          powerKw: clampNonNegative(finiteOr(powerKw)),
+          torqueNm: clampNonNegative(finiteOr(torqueNm)),
+          boost: clampNonNegative(finiteOr(boost))
+        },
+        input: {
+          throttle: ratio(u8(packet, o.throttle)),
+          brake: ratio(u8(packet, o.brake)),
+          clutch: ratio(u8(packet, o.clutch)),
+          steer: Math.max(-1, Math.min(1, i8(packet, o.steer) / 127)),
+          handbrake: ratio(u8(packet, o.handbrake))
+        },
+        tires: {
+          frontLeftTemp: finiteOr(fahrenheitToCelsius(tireTempsF[0])),
+          frontRightTemp: finiteOr(fahrenheitToCelsius(tireTempsF[1])),
+          rearLeftTemp: finiteOr(fahrenheitToCelsius(tireTempsF[2])),
+          rearRightTemp: finiteOr(fahrenheitToCelsius(tireTempsF[3]))
+        },
+        motion: {
+          accelX: f32(packet, o.accelX),
+          accelY: f32(packet, o.accelY),
+          accelZ: f32(packet, o.accelZ)
+        }
+      }
+    };
+  } catch (error) {
+    return {
+      profile,
+      accepted: false,
+      score: 0,
+      errors: [error.message || String(error)],
+      warnings
+    };
   }
 }
 
-function isReasonable(value, min, max) {
-  return Number.isFinite(value) && value >= min && value <= max;
+function parseSledFallback(packet) {
+  const velocityX = f32(packet, SLED_OFFSETS.velocityX);
+  const velocityY = f32(packet, SLED_OFFSETS.velocityY);
+  const velocityZ = f32(packet, SLED_OFFSETS.velocityZ);
+  const speedKmh = Math.hypot(velocityX, velocityY, velocityZ) * 3.6;
+  const currentRpm = f32(packet, SLED_OFFSETS.currentRpm);
+  const engineMaxRpm = f32(packet, SLED_OFFSETS.engineMaxRpm);
+  const errors = [];
+
+  validateRange(errors, "sledSpeedKmh", speedKmh, 0, 650);
+  validateRange(errors, "sledCurrentRpm", currentRpm, 0, 25000);
+  validateRange(errors, "sledEngineMaxRpm", engineMaxRpm, 0, 25000);
+
+  if (errors.length > 0) {
+    throw new Error(`No valid Forza parser profile. ${errors.join("; ")}`);
+  }
+
+  return {
+    timestamp: Date.now(),
+    connected: true,
+    vehicle: {
+      speedKmh: clampNonNegative(zeroSmall(speedKmh)),
+      rpm: clampNonNegative(currentRpm),
+      maxRpm: clampNonNegative(engineMaxRpm),
+      gear: 0
+    },
+    input: {
+      throttle: 0,
+      brake: 0,
+      steer: 0
+    },
+    motion: {
+      accelX: f32(packet, SLED_OFFSETS.accelX),
+      accelY: f32(packet, SLED_OFFSETS.accelY),
+      accelZ: f32(packet, SLED_OFFSETS.accelZ)
+    }
+  };
+}
+
+function toPacketInfo(packet, profile, dashShift, accepted, errors, candidates) {
+  return {
+    length: packet.length,
+    format: profile,
+    profile,
+    dashShift,
+    accepted,
+    errors,
+    candidates: candidates.map((candidate) => ({
+      profile: candidate.profile.name,
+      dashShift: candidate.profile.dashShift,
+      accepted: candidate.accepted,
+      score: candidate.score,
+      errors: candidate.errors,
+      warnings: candidate.warnings,
+      values: candidate.values
+    }))
+  };
+}
+
+function validateRange(errors, name, value, min, max) {
+  if (!Number.isFinite(value) || value < min || value > max) {
+    errors.push(`${name}=${value} outside ${min}..${max}`);
+    return false;
+  }
+  return true;
 }
 
 function f32(packet, offset) {
@@ -272,10 +398,23 @@ function clampNonNegative(value) {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
+function zeroSmall(value, epsilon = 0.01) {
+  return Math.abs(value) < epsilon ? 0 : value;
+}
+
+function fahrenheitToCelsius(value) {
+  // Forza Data Out reports tire temperatures in Fahrenheit; normalize to
+  // Celsius so the standalone dashboard matches the in-game tire screen.
+  return Number.isFinite(value) ? (value - 32) * (5 / 9) : 0;
+}
+
+function finiteOr(value, fallback = 0) {
+  return Number.isFinite(value) ? value : fallback;
+}
+
 function normalizeGear(raw) {
   if (raw === 0) return -1;
-  if (raw === 1) return 0;
-  return raw - 1;
+  return raw;
 }
 
 function createMockTelemetrySnapshot(now = Date.now()) {
@@ -318,6 +457,14 @@ udpSocket.on("message", (packet, remote) => {
   try {
     updateSnapshot(parseForzaPacket(packet));
   } catch (error) {
+    lastPacketInfo = {
+      length: packet.length,
+      format: "parse-error",
+      profile: "parse-error",
+      dashShift: null,
+      accepted: false,
+      errors: [error.message || String(error)]
+    };
     console.error("[udp] Failed to parse packet", {
       remote: `${remote.address}:${remote.port}`,
       length: packet.length,
@@ -489,6 +636,7 @@ function createDashboardHtml(renderHz) {
     <style>
       :root { color-scheme: dark; font-family: Segoe UI, system-ui, sans-serif; background: #0b0d10; color: #f4f7fb; }
       * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
       body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, rgba(255,255,255,.05), transparent 360px), #0b0d10; }
       main { width: min(1180px, calc(100vw - 32px)); margin: 0 auto; padding: 24px 0 32px; }
       header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
@@ -516,6 +664,7 @@ function createDashboardHtml(renderHz) {
       .rpm-fill { background: linear-gradient(90deg, #22c55e, #facc15 68%, #ef4444); }
       .throttle { background: #22c55e; }
       .brake { background: #ef4444; }
+      .clutch { background: #f59e0b; }
       .steer-track { position: relative; height: 22px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.09); }
       .steer-center { position: absolute; left: 50%; top: 0; width: 2px; height: 100%; background: rgba(255,255,255,.35); }
       .steer-marker { position: absolute; left: calc(50% - 8px); top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 16px rgba(56,189,248,.75); transition: transform 80ms linear; }
@@ -551,9 +700,9 @@ function createDashboardHtml(renderHz) {
         <section class="card speed"><div class="label">Speed</div><div id="speed" class="speed-value">0</div><div class="meta">km/h</div></section>
         <section class="card gear"><div class="label">Gear</div><div id="gear" class="gear-value">N</div></section>
         <section class="card"><div class="label">RPM</div><div id="rpm-readout" style="font-size:2rem;font-weight:900;text-align:right">0</div><div class="track rpm-track"><div id="rpm-fill" class="fill rpm-fill"></div></div><div id="rpm-max" class="meta">Max 0</div></section>
-        <section class="card"><div class="label">Inputs</div><div class="row"><span>Throttle</span><div class="track"><div id="throttle" class="fill throttle"></div></div><strong id="throttle-text">0%</strong></div><div class="row"><span>Brake</span><div class="track"><div id="brake" class="fill brake"></div></div><strong id="brake-text">0%</strong></div><div class="row"><span>Steer</span><div class="steer-track"><div class="steer-center"></div><div id="steer" class="steer-marker"></div></div><strong id="steer-text">0%</strong></div></section>
+        <section class="card"><div class="label">Inputs</div><div class="row"><span>Throttle</span><div class="track"><div id="throttle" class="fill throttle"></div></div><strong id="throttle-text">0%</strong></div><div class="row"><span>Brake</span><div class="track"><div id="brake" class="fill brake"></div></div><strong id="brake-text">0%</strong></div><div class="row"><span>Clutch</span><div class="track"><div id="clutch" class="fill clutch"></div></div><strong id="clutch-text">0%</strong></div><div class="row"><span>Steer</span><div class="steer-track"><div class="steer-center"></div><div id="steer" class="steer-marker"></div></div><strong id="steer-text">0%</strong></div></section>
         <section class="card"><div class="label">Powertrain</div><div class="stat-row"><span>Power</span><strong id="power">-- kW</strong></div><div class="stat-row"><span>Torque</span><strong id="torque">-- Nm</strong></div><div class="stat-row"><span>Boost</span><strong id="boost">--</strong></div></section>
-        <section class="card"><div class="label">Tire Temps</div><div class="tires"><div class="tire"><span>FL</span><strong id="tfl">--</strong><small>deg</small></div><div class="tire"><span>FR</span><strong id="tfr">--</strong><small>deg</small></div><div class="tire"><span>RL</span><strong id="trl">--</strong><small>deg</small></div><div class="tire"><span>RR</span><strong id="trr">--</strong><small>deg</small></div></div></section>
+        <section class="card"><div class="label">Tire Temps</div><div class="tires"><div class="tire"><span>FL</span><strong id="tfl">--</strong><small>C</small></div><div class="tire"><span>FR</span><strong id="tfr">--</strong><small>C</small></div><div class="tire"><span>RL</span><strong id="trl">--</strong><small>C</small></div><div class="tire"><span>RR</span><strong id="trr">--</strong><small>C</small></div></div></section>
       </section>
     </main>
     <script>
@@ -589,7 +738,7 @@ function createDashboardHtml(renderHz) {
         const live = status === "connected" && latest && latest.connected;
         $("dot").className = "dot" + (live ? " live" : "");
         $("status-label").textContent = live ? "Live" : latest && !latest.connected ? "stale" : status;
-        $("status-meta").textContent = "Render ${renderHz}Hz" + (latest ? " · Last " + new Date(latest.timestamp).toLocaleTimeString() : "");
+        $("status-meta").textContent = "Render ${renderHz}Hz" + (latest ? " - Last " + new Date(latest.timestamp).toLocaleTimeString() : "");
         $("waiting").hidden = !!latest;
         $("grid").hidden = !latest;
         if (!latest) return;
@@ -601,8 +750,10 @@ function createDashboardHtml(renderHz) {
         $("rpm-max").textContent = "Max " + Math.round(v.maxRpm || 8000).toLocaleString();
         $("throttle").style.width = pct(i.throttle) + "%";
         $("brake").style.width = pct(i.brake) + "%";
+        $("clutch").style.width = pct(i.clutch) + "%";
         $("throttle-text").textContent = pct(i.throttle) + "%";
         $("brake-text").textContent = pct(i.brake) + "%";
+        $("clutch-text").textContent = pct(i.clutch) + "%";
         $("steer").style.transform = "translateX(" + Math.max(-50, Math.min(50, (i.steer || 0) * 50)) + "%)";
         $("steer-text").textContent = Math.round((i.steer || 0) * 100) + "%";
         $("power").textContent = num(v.powerKw) + " kW";

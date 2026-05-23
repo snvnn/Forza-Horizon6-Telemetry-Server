@@ -75,7 +75,7 @@ export function loadConfig(): AppConfig {
   const broadcastHz = parseHz(process.env.TELEMETRY_BROADCAST_HZ, 60);
 
   return {
-    udpPort: parsePort(process.env.UDP_PORT, 5300),
+    udpPort: parsePort(process.env.UDP_PORT, 5400),
     httpPort: parsePort(process.env.HTTP_PORT, 3000),
     // Binding to 0.0.0.0 lets phones and tablets on the same LAN reach the PC.
     host: process.env.HOST?.trim() || "0.0.0.0",

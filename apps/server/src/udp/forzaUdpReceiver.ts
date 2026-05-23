@@ -17,8 +17,16 @@ export function startForzaUdpReceiver(options: ForzaUdpReceiverOptions): dgram.S
   socket.on("message", (packet, remote) => {
     try {
       const snapshot = options.parser.parse(packet);
-      options.store.update(snapshot);
+      options.store.update(snapshot, options.parser.getLastDiagnostics());
     } catch (error) {
+      options.store.setLastPacketInfo({
+        length: packet.length,
+        format: "parse-error",
+        profile: "parse-error",
+        dashShift: null,
+        accepted: false,
+        errors: [error instanceof Error ? error.message : String(error)]
+      });
       console.error("[udp] Failed to parse Forza telemetry packet", {
         remote: `${remote.address}:${remote.port}`,
         length: packet.length,

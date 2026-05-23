@@ -36,6 +36,7 @@ export function App() {
           <PedalBars
             throttle={snapshot.input.throttle}
             brake={snapshot.input.brake}
+            clutch={snapshot.input.clutch}
             steer={snapshot.input.steer}
           />
           <section className="metric-card stat-card" aria-label="Power and torque">

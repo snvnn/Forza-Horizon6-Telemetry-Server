@@ -177,7 +177,7 @@ function getLocalIps() {
 const env = { ...parseEnvFile(envPath), ...process.env };
 const host = env.HOST?.trim() || "0.0.0.0";
 const httpPort = parsePort(env.HTTP_PORT, 3000);
-const udpPort = parsePort(env.UDP_PORT, 5300);
+const udpPort = parsePort(env.UDP_PORT, 5400);
 const broadcastHz = parseHz(env.TELEMETRY_BROADCAST_HZ, 60);
 const renderHz = parseHz(env.VITE_RENDER_HZ, 60);
 

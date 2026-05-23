@@ -1,16 +1,38 @@
 import type { TelemetrySnapshot } from "./telemetryTypes.js";
 
+export type TelemetryPacketInfo = {
+  length: number;
+  format?: string;
+  profile: string;
+  dashShift: number | null;
+  accepted: boolean;
+  errors: string[];
+  candidates?: Array<{
+    profile: string;
+    dashShift: number;
+    accepted: boolean;
+    score: number;
+    errors: string[];
+    warnings?: string[];
+    values?: Record<string, number>;
+  }>;
+};
+
 export class TelemetryStore {
   private latest: TelemetrySnapshot | null = null;
   private lastPacketAt = 0;
+  private lastPacketInfo: TelemetryPacketInfo | null = null;
 
   constructor(private readonly connectionTimeoutMs: number) {}
 
   // The store keeps only the latest normalized state in memory. There is no DB,
   // queue, file export, or historical buffer in this MVP.
-  update(snapshot: TelemetrySnapshot): void {
+  update(snapshot: TelemetrySnapshot, packetInfo?: TelemetryPacketInfo | null): void {
     const now = Date.now();
     this.lastPacketAt = now;
+    if (packetInfo) {
+      this.lastPacketInfo = packetInfo;
+    }
     this.latest = {
       ...snapshot,
       timestamp: snapshot.timestamp || now,
@@ -31,6 +53,14 @@ export class TelemetryStore {
 
   getLastPacketAt(): number {
     return this.lastPacketAt;
+  }
+
+  getLastPacketInfo(): TelemetryPacketInfo | null {
+    return this.lastPacketInfo;
+  }
+
+  setLastPacketInfo(packetInfo: TelemetryPacketInfo): void {
+    this.lastPacketInfo = packetInfo;
   }
 
   hasTelemetry(): boolean {

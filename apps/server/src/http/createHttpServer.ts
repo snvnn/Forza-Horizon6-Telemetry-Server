@@ -95,7 +95,8 @@ export function createTelemetryHttpServer(
         broadcastHz: config.broadcastHz,
         broadcastIntervalMs: config.broadcastIntervalMs,
         mockTelemetry: config.mockTelemetry,
-        connectionTimeoutMs: config.connectionTimeoutMs
+        connectionTimeoutMs: config.connectionTimeoutMs,
+        lastPacket: store.getLastPacketInfo()
       });
       return;
     }

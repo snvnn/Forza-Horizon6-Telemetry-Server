@@ -1,7 +1,6 @@
 import type { TelemetrySnapshot } from "../telemetry/telemetryTypes.js";
 
 type PacketOffsets = {
-  name: string;
   engineMaxRpm: number;
   currentRpm: number;
   accelX: number;
@@ -23,9 +22,56 @@ type PacketOffsets = {
   steer: number;
 };
 
-function createDashOffsets(name: string, dashShift = 0): PacketOffsets {
+type DashProfile = {
+  name: string;
+  dashShift: number;
+  minimumLength: number;
+  expectedLength?: number;
+  priority: number;
+  offsets: PacketOffsets;
+};
+
+type DashCandidate = {
+  profile: DashProfile;
+  accepted: boolean;
+  score: number;
+  errors: string[];
+  warnings: string[];
+  values?: Record<string, number>;
+  snapshot?: TelemetrySnapshot;
+};
+
+export type ForzaParserDiagnostics = {
+  length: number;
+  format: string;
+  profile: string;
+  dashShift: number | null;
+  accepted: boolean;
+  errors: string[];
+  candidates: Array<{
+    profile: string;
+    dashShift: number;
+    accepted: boolean;
+    score: number;
+    errors: string[];
+    warnings: string[];
+    values?: Record<string, number>;
+  }>;
+};
+
+const SLED_OFFSETS = {
+  engineMaxRpm: 8,
+  currentRpm: 16,
+  accelX: 20,
+  accelY: 24,
+  accelZ: 28,
+  velocityX: 32,
+  velocityY: 36,
+  velocityZ: 40
+};
+
+function createDashOffsets(dashShift: number): PacketOffsets {
   return {
-    name,
     engineMaxRpm: 8,
     currentRpm: 16,
     accelX: 20,
@@ -48,23 +94,27 @@ function createDashOffsets(name: string, dashShift = 0): PacketOffsets {
   };
 }
 
-const FORZA_DASH_OFFSETS: PacketOffsets = createDashOffsets("forza-dash", 0);
-
-// Forza Horizon 5 Dash packets include a 12-byte Horizon-specific placeholder
-// after the Sled section, so dashboard fields such as speed, gear, and torque
-// are shifted by 12 bytes compared with the Motorsport/FM7 Dash layout.
-const FORZA_HORIZON_DASH_OFFSETS: PacketOffsets = createDashOffsets("forza-horizon-dash", 12);
-
-const SLED_OFFSETS = {
-  engineMaxRpm: 8,
-  currentRpm: 16,
-  accelX: 20,
-  accelY: 24,
-  accelZ: 28,
-  velocityX: 32,
-  velocityY: 36,
-  velocityZ: 40
-};
+const DASH_PROFILES: DashProfile[] = [
+  // FH6 has a single fixed 324-byte packet. It inserts CarGroup,
+  // SmashableVelDiff, and SmashableMass after NumCylinders, which shifts the
+  // Dash-like fields by 12 bytes compared with Motorsport Dash.
+  {
+    name: "forza-horizon-6-data-out",
+    dashShift: 12,
+    minimumLength: 324,
+    expectedLength: 324,
+    priority: 0,
+    offsets: createDashOffsets(12)
+  },
+  {
+    name: "forza-motorsport-dash",
+    dashShift: 0,
+    minimumLength: 311,
+    expectedLength: 311,
+    priority: 1,
+    offsets: createDashOffsets(0)
+  }
+];
 
 export type ForzaPacketParserOptions = {
   debugPacket: boolean;
@@ -103,107 +153,130 @@ function clampNonNegative(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
+function zeroSmall(value: number, epsilon = 0.01): number {
+  return Math.abs(value) < epsilon ? 0 : value;
+}
+
+function fahrenheitToCelsius(value: number): number {
+  // Forza Data Out tire values are normalized to Celsius here so the web
+  // dashboard matches the in-game tire telemetry screen.
+  return (value - 32) * (5 / 9);
+}
+
+function finiteOr(value: number, fallback = 0): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
 function normalizeGear(rawGear: number): number {
-  // Common Forza Data Out mapping is 0=reverse, 1=neutral, 2=first gear.
+  // FH6 reports reverse as 0 and forward gears as their visible gear number.
+  // Do not subtract one here: raw 1 is 1st gear, raw 2 is 2nd gear.
   if (rawGear === 0) {
     return -1;
   }
-  if (rawGear === 1) {
-    return 0;
-  }
-  return rawGear - 1;
+  return rawGear;
 }
 
-function isReasonable(value: number, min: number, max: number): boolean {
+function inRange(value: number, min: number, max: number): boolean {
   return Number.isFinite(value) && value >= min && value <= max;
 }
 
-function scoreOffsets(packet: Buffer, offsets: PacketOffsets): number {
+function validateRange(errors: string[], name: string, value: number, min: number, max: number): boolean {
+  if (!inRange(value, min, max)) {
+    errors.push(`${name}=${value} outside ${min}..${max}`);
+    return false;
+  }
+  return true;
+}
+
+function tryParseDashProfile(packet: Buffer, profile: DashProfile): DashCandidate {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (profile.expectedLength != null && packet.length !== profile.expectedLength) {
+    return {
+      profile,
+      accepted: false,
+      score: 0,
+      errors: [`length=${packet.length} expected ${profile.expectedLength}`],
+      warnings
+    };
+  }
+
+  if (packet.length < profile.minimumLength) {
+    return {
+      profile,
+      accepted: false,
+      score: 0,
+      errors: [`length=${packet.length} shorter than ${profile.minimumLength}`],
+      warnings
+    };
+  }
+
   try {
-    const speedKmh = readFloat(packet, offsets.speedMs) * 3.6;
-    const powerKw = readFloat(packet, offsets.powerW) / 1000;
-    const torqueNm = readFloat(packet, offsets.torqueNm);
-    const tireTemps = [
-      readFloat(packet, offsets.tireTempFrontLeft),
-      readFloat(packet, offsets.tireTempFrontRight),
-      readFloat(packet, offsets.tireTempRearLeft),
-      readFloat(packet, offsets.tireTempRearRight)
+    const o = profile.offsets;
+    const engineMaxRpm = readFloat(packet, o.engineMaxRpm);
+    const currentRpm = readFloat(packet, o.currentRpm);
+    const speedKmh = readFloat(packet, o.speedMs) * 3.6;
+    const powerKw = readFloat(packet, o.powerW) / 1000;
+    const torqueNm = readFloat(packet, o.torqueNm);
+    const boost = readFloat(packet, o.boost);
+    const tireTempsF = [
+      readFloat(packet, o.tireTempFrontLeft),
+      readFloat(packet, o.tireTempFrontRight),
+      readFloat(packet, o.tireTempRearLeft),
+      readFloat(packet, o.tireTempRearRight)
     ];
-    const boost = readFloat(packet, offsets.boost);
-    const gearRaw = readUInt8(packet, offsets.gear);
+    const gearRaw = readUInt8(packet, o.gear);
+    const values = {
+      speedKmh,
+      engineMaxRpm,
+      currentRpm,
+      powerKw,
+      torqueNm,
+      boost,
+      tireTempFrontLeftF: tireTempsF[0],
+      tireTempFrontRightF: tireTempsF[1],
+      tireTempRearLeftF: tireTempsF[2],
+      tireTempRearRightF: tireTempsF[3],
+      gearRaw,
+      throttleRaw: readUInt8(packet, o.throttle),
+      brakeRaw: readUInt8(packet, o.brake),
+      clutchRaw: readUInt8(packet, o.clutch),
+      steerRaw: readInt8(packet, o.steer)
+    };
 
     let score = 0;
-    if (isReasonable(speedKmh, 0, 650)) score += 3;
-    if (isReasonable(powerKw, -1500, 2500)) score += 2;
-    if (isReasonable(torqueNm, -2000, 3000)) score += 2;
-    score += tireTemps.filter((value) => isReasonable(value, -50, 350)).length;
-    if (isReasonable(boost, -5, 20)) score += 1;
-    if (gearRaw >= 0 && gearRaw <= 12) score += 2;
-    return score;
-  } catch {
-    return -1;
-  }
-}
-
-function chooseOffsets(packet: Buffer): PacketOffsets | null {
-  const candidates = [FORZA_HORIZON_DASH_OFFSETS, FORZA_DASH_OFFSETS];
-  const ranked = candidates
-    .map((offsets) => ({ offsets, score: scoreOffsets(packet, offsets) }))
-    .sort((left, right) => right.score - left.score);
-
-  return ranked[0]?.score >= 0 ? ranked[0].offsets : null;
-}
-
-export class ForzaPacketParser {
-  constructor(
-    private readonly options: ForzaPacketParserOptions,
-    private readonly offsets?: PacketOffsets
-  ) {}
-
-  // The parser is intentionally offset-based so FH5, FH6, Motorsport, or a
-  // changed Dash packet can be supported by swapping the offset map.
-  parse(packet: Buffer): TelemetrySnapshot {
-    const o = this.offsets ?? chooseOffsets(packet);
-
-    if (!o) {
-      const velocityX = readFloat(packet, SLED_OFFSETS.velocityX);
-      const velocityY = readFloat(packet, SLED_OFFSETS.velocityY);
-      const velocityZ = readFloat(packet, SLED_OFFSETS.velocityZ);
-      const speedMs = Math.hypot(velocityX, velocityY, velocityZ);
-
-      return {
-        timestamp: Date.now(),
-        connected: true,
-        vehicle: {
-          speedKmh: Math.max(0, speedMs * 3.6),
-          rpm: Math.max(0, readFloat(packet, SLED_OFFSETS.currentRpm)),
-          maxRpm: Math.max(0, readFloat(packet, SLED_OFFSETS.engineMaxRpm)),
-          gear: 0
-        },
-        input: {
-          throttle: 0,
-          brake: 0,
-          steer: 0
-        },
-        motion: {
-          accelX: readFloat(packet, SLED_OFFSETS.accelX),
-          accelY: readFloat(packet, SLED_OFFSETS.accelY),
-          accelZ: readFloat(packet, SLED_OFFSETS.accelZ)
-        }
-      };
+    if (validateRange(warnings, "engineMaxRpm", engineMaxRpm, 100, 25000)) score += 2;
+    if (validateRange(warnings, "currentRpm", currentRpm, 0, 25000)) score += 2;
+    if (engineMaxRpm > 0 && currentRpm > engineMaxRpm * 1.5) {
+      warnings.push(`currentRpm=${currentRpm} too high for engineMaxRpm=${engineMaxRpm}`);
+    } else {
+      score += 1;
+    }
+    if (validateRange(warnings, "speedKmh", speedKmh, -1, 650)) score += 3;
+    if (validateRange(warnings, "powerKw", powerKw, -2500, 5000)) score += 1;
+    if (validateRange(warnings, "torqueNm", torqueNm, -2000, 5000)) score += 1;
+    if (validateRange(warnings, "boost", boost, -30, 60)) score += 2;
+    for (const [index, tempF] of tireTempsF.entries()) {
+      if (validateRange(warnings, `tireTempF[${index}]`, tempF, -40, 450)) score += 1;
+    }
+    if (gearRaw <= 12) {
+      score += 2;
+    } else {
+      warnings.push(`gearRaw=${gearRaw} outside 0..12`);
     }
 
     const snapshot: TelemetrySnapshot = {
       timestamp: Date.now(),
       connected: true,
       vehicle: {
-        speedKmh: Math.max(0, readFloat(packet, o.speedMs) * 3.6),
-        rpm: Math.max(0, readFloat(packet, o.currentRpm)),
-        maxRpm: Math.max(0, readFloat(packet, o.engineMaxRpm)),
-        gear: normalizeGear(readUInt8(packet, o.gear)),
-        powerKw: readFloat(packet, o.powerW) / 1000,
-        torqueNm: clampNonNegative(readFloat(packet, o.torqueNm)),
-        boost: clampNonNegative(readFloat(packet, o.boost))
+        speedKmh: clampNonNegative(zeroSmall(finiteOr(speedKmh))),
+        rpm: clampNonNegative(finiteOr(currentRpm)),
+        maxRpm: clampNonNegative(finiteOr(engineMaxRpm)),
+        gear: normalizeGear(gearRaw),
+        powerKw: clampNonNegative(finiteOr(powerKw)),
+        torqueNm: clampNonNegative(finiteOr(torqueNm)),
+        boost: clampNonNegative(finiteOr(boost))
       },
       input: {
         throttle: byteToRatio(readUInt8(packet, o.throttle)),
@@ -213,10 +286,10 @@ export class ForzaPacketParser {
         handbrake: byteToRatio(readUInt8(packet, o.handbrake))
       },
       tires: {
-        frontLeftTemp: readFloat(packet, o.tireTempFrontLeft),
-        frontRightTemp: readFloat(packet, o.tireTempFrontRight),
-        rearLeftTemp: readFloat(packet, o.tireTempRearLeft),
-        rearRightTemp: readFloat(packet, o.tireTempRearRight)
+        frontLeftTemp: finiteOr(fahrenheitToCelsius(tireTempsF[0])),
+        frontRightTemp: finiteOr(fahrenheitToCelsius(tireTempsF[1])),
+        rearLeftTemp: finiteOr(fahrenheitToCelsius(tireTempsF[2])),
+        rearRightTemp: finiteOr(fahrenheitToCelsius(tireTempsF[3]))
       },
       motion: {
         accelX: readFloat(packet, o.accelX),
@@ -225,19 +298,148 @@ export class ForzaPacketParser {
       }
     };
 
+    return { profile, accepted: true, score, errors, warnings, values, snapshot };
+  } catch (error) {
+    return {
+      profile,
+      accepted: false,
+      score: 0,
+      errors: [error instanceof Error ? error.message : String(error)],
+      warnings
+    };
+  }
+}
+
+function parseSledFallback(packet: Buffer): TelemetrySnapshot {
+  const velocityX = readFloat(packet, SLED_OFFSETS.velocityX);
+  const velocityY = readFloat(packet, SLED_OFFSETS.velocityY);
+  const velocityZ = readFloat(packet, SLED_OFFSETS.velocityZ);
+  const speedKmh = Math.hypot(velocityX, velocityY, velocityZ) * 3.6;
+  const currentRpm = readFloat(packet, SLED_OFFSETS.currentRpm);
+  const engineMaxRpm = readFloat(packet, SLED_OFFSETS.engineMaxRpm);
+
+  const errors: string[] = [];
+  validateRange(errors, "sledSpeedKmh", speedKmh, 0, 650);
+  validateRange(errors, "sledCurrentRpm", currentRpm, 0, 25000);
+  validateRange(errors, "sledEngineMaxRpm", engineMaxRpm, 0, 25000);
+
+  if (errors.length > 0) {
+    throw new Error(`No valid Forza parser profile. ${errors.join("; ")}`);
+  }
+
+  return {
+    timestamp: Date.now(),
+    connected: true,
+    vehicle: {
+      speedKmh: clampNonNegative(zeroSmall(speedKmh)),
+      rpm: clampNonNegative(currentRpm),
+      maxRpm: clampNonNegative(engineMaxRpm),
+      gear: 0
+    },
+    input: {
+      throttle: 0,
+      brake: 0,
+      steer: 0
+    },
+    motion: {
+      accelX: readFloat(packet, SLED_OFFSETS.accelX),
+      accelY: readFloat(packet, SLED_OFFSETS.accelY),
+      accelZ: readFloat(packet, SLED_OFFSETS.accelZ)
+    }
+  };
+}
+
+function toDiagnostics(
+  packet: Buffer,
+  profile: string,
+  dashShift: number | null,
+  accepted: boolean,
+  errors: string[],
+  candidates: DashCandidate[]
+): ForzaParserDiagnostics {
+  return {
+    length: packet.length,
+    format: profile,
+    profile,
+    dashShift,
+    accepted,
+    errors,
+    candidates: candidates.map((candidate) => ({
+      profile: candidate.profile.name,
+      dashShift: candidate.profile.dashShift,
+      accepted: candidate.accepted,
+      score: candidate.score,
+      errors: candidate.errors,
+      warnings: candidate.warnings,
+      values: candidate.values
+    }))
+  };
+}
+
+export class ForzaPacketParser {
+  private lastDiagnostics: ForzaParserDiagnostics | null = null;
+
+  constructor(private readonly options: ForzaPacketParserOptions) {}
+
+  getLastDiagnostics(): ForzaParserDiagnostics | null {
+    return this.lastDiagnostics;
+  }
+
+  // Packet parsing is profile-first and validation-first. We never expose a
+  // Dash field until one complete candidate layout passes sanity checks.
+  parse(packet: Buffer): TelemetrySnapshot {
+    const candidates = DASH_PROFILES.map((profile) => tryParseDashProfile(packet, profile)).sort(
+      (left, right) =>
+        Number(right.accepted) - Number(left.accepted) ||
+        right.score - left.score ||
+        left.profile.priority - right.profile.priority
+    );
+    const selected = candidates.find((candidate) => candidate.accepted && candidate.snapshot);
+
+    if (selected?.snapshot) {
+      this.lastDiagnostics = toDiagnostics(
+        packet,
+        selected.profile.name,
+        selected.profile.dashShift,
+        true,
+        [],
+        candidates
+      );
+
+      if (this.options.debugPacket) {
+        console.debug("[packet]", {
+          ...this.lastDiagnostics,
+          speedKmh: selected.snapshot.vehicle.speedKmh,
+          rpm: selected.snapshot.vehicle.rpm,
+          gear: selected.snapshot.vehicle.gear
+        });
+      }
+
+      return selected.snapshot;
+    }
+
+    const fallback = parseSledFallback(packet);
+    const errors = candidates.flatMap((candidate) =>
+      candidate.errors.map((error) => `${candidate.profile.name}: ${error}`)
+    );
+    this.lastDiagnostics = toDiagnostics(
+      packet,
+      "forza-sled-fallback",
+      null,
+      true,
+      errors,
+      candidates
+    );
+
     if (this.options.debugPacket) {
       console.debug("[packet]", {
-        format: o.name,
-        length: packet.length,
-        speedKmh: snapshot.vehicle.speedKmh,
-        rpm: snapshot.vehicle.rpm,
-        gear: snapshot.vehicle.gear,
-        throttle: snapshot.input.throttle,
-        brake: snapshot.input.brake
+        ...this.lastDiagnostics,
+        speedKmh: fallback.vehicle.speedKmh,
+        rpm: fallback.vehicle.rpm
       });
     }
 
-    return snapshot;
+    return fallback;
   }
 }
 

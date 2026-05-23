@@ -58,7 +58,7 @@ npm.cmd run validate:env
 - npm
 - npm cache
 - HTTP port bind: `0.0.0.0:3000`
-- UDP port bind: `0.0.0.0:5300`
+- UDP port bind: `0.0.0.0:5400`
 - LAN IPv4
 
 Codex 샌드박스처럼 외부 네트워크가 막힌 환경에서는 `npm registry`가 `WARN`으로 표시될 수 있습니다. 일반 PowerShell에서 이 항목이 실패하면 방화벽, 프록시, VPN, 보안 프로그램의 npm registry 접속 차단을 확인합니다.
@@ -86,7 +86,7 @@ npm.cmd run standalone
 
 이 모드는 Node 내장 모듈만 사용합니다.
 
-- UDP 수신: `0.0.0.0:5300`
+- UDP 수신: `0.0.0.0:5400`
 - HTTP/WebSocket: `0.0.0.0:3000`
 - API: `/api/status`, `/api/telemetry`
 - WebSocket: `/ws/telemetry`
@@ -133,7 +133,7 @@ npm run dev
 ## 환경 변수
 
 ```env
-UDP_PORT=5300
+UDP_PORT=5400
 HTTP_PORT=3000
 HOST=0.0.0.0
 TELEMETRY_BROADCAST_HZ=60
@@ -167,7 +167,7 @@ Forza Horizon 설정에서 Data Out을 켭니다.
 
 - Data Out: On
 - IP Address: `127.0.0.1`
-- Port: `5300`
+- Port: `5400`
 
 Forza와 서버가 같은 PC에서 실행되는 구조이므로 Forza의 IP Address는 `127.0.0.1`을 사용합니다. 서버는 `0.0.0.0`에 바인딩되어 태블릿 브라우저 접속도 받습니다.
 
@@ -204,7 +204,8 @@ http://192.168.0.25:5173
 3. 방화벽에서 앱 허용
 4. Node.js 또는 현재 사용하는 Node 실행 파일이 개인 네트워크에서 허용되어 있는지 확인
 
-HTTP 포트는 기본 `3000`, UDP 포트는 기본 `5300`입니다.
+HTTP 포트는 기본 `3000`, UDP 포트는 기본 `5400`입니다.
+FH6 공식 문서는 게임이 5200-5300 범위의 포트를 자체 outgoing socket에 사용할 수 있으므로 앱 수신 포트로 이 범위를 피하라고 안내합니다.
 
 ## API
 

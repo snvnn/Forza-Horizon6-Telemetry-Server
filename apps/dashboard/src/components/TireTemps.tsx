@@ -29,7 +29,7 @@ export function TireTemps({ tires }: Props) {
           <div className="tire-cell" key={label}>
             <span>{label}</span>
             <strong>{Math.round(value)}</strong>
-            <small>deg</small>
+            <small>C</small>
           </div>
         ))}
       </div>
