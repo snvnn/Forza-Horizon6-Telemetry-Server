@@ -9,8 +9,8 @@ const env = {
   ...process.env,
   MOCK_TELEMETRY: "true",
   HOST: "127.0.0.1",
-  HTTP_PORT: "3000",
-  UDP_PORT: "5300"
+  HTTP_PORT: "13000",
+  UDP_PORT: "15300"
 };
 
 const server = spawn(nodePath, [serverPath], {
@@ -24,9 +24,9 @@ server.stdout.on("data", (chunk) => logs.push(chunk.toString()));
 server.stderr.on("data", (chunk) => logs.push(chunk.toString()));
 
 try {
-  await waitForHttp("http://127.0.0.1:3000/api/status", 7000);
-  const status = await fetchJson("http://127.0.0.1:3000/api/status");
-  const telemetry = await fetchJson("http://127.0.0.1:3000/api/telemetry");
+  await waitForHttp("http://127.0.0.1:13000/api/status", 7000);
+  const status = await fetchJson("http://127.0.0.1:13000/api/status");
+  const telemetry = await fetchJson("http://127.0.0.1:13000/api/telemetry");
 
   assert(status.ok === true, "status.ok should be true");
   assert(status.broadcastHz === 60, "status.broadcastHz should be 60");

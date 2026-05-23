@@ -23,6 +23,7 @@ config.broadcastIntervalMs = 1000 / config.broadcastHz;
 
 let latest = null;
 let lastPacketAt = 0;
+let lastPacketInfo = null;
 const clients = new Set();
 
 function readEnv(path) {
@@ -83,94 +84,125 @@ function updateSnapshot(snapshot) {
 }
 
 function parseForzaPacket(packet) {
-  const offsets = {
+  const sled = {
     engineMaxRpm: 8,
     currentRpm: 16,
     accelX: 20,
     accelY: 24,
     accelZ: 28,
-    speedMs: 244,
-    powerW: 248,
-    torqueNm: 252,
-    tireTempFrontLeft: 256,
-    tireTempFrontRight: 260,
-    tireTempRearLeft: 264,
-    tireTempRearRight: 268,
-    boost: 272,
-    throttle: 303,
-    brake: 304,
-    clutch: 305,
-    handbrake: 306,
-    gear: 307,
-    steer: 308
+    velocityX: 32,
+    velocityY: 36,
+    velocityZ: 40
   };
 
-  function requireLength(offset, bytes) {
-    if (packet.length < offset + bytes) {
-      throw new Error(`Packet length ${packet.length} is too short for offset ${offset}`);
-    }
+  function dashOffsets(name, shift) {
+    return {
+      name,
+      engineMaxRpm: 8,
+      currentRpm: 16,
+      accelX: 20,
+      accelY: 24,
+      accelZ: 28,
+      speedMs: 244 + shift,
+      powerW: 248 + shift,
+      torqueNm: 252 + shift,
+      tireTempFrontLeft: 256 + shift,
+      tireTempFrontRight: 260 + shift,
+      tireTempRearLeft: 264 + shift,
+      tireTempRearRight: 268 + shift,
+      boost: 272 + shift,
+      throttle: 303 + shift,
+      brake: 304 + shift,
+      clutch: 305 + shift,
+      handbrake: 306 + shift,
+      gear: 307 + shift,
+      steer: 308 + shift
+    };
   }
 
-  function f32(offset) {
-    requireLength(offset, 4);
-    return packet.readFloatLE(offset);
+  const candidates = [
+    dashOffsets("forza-horizon-dash", 12),
+    dashOffsets("forza-dash", 0)
+  ];
+
+  const offsets = candidates
+    .map((candidate) => ({ candidate, score: scoreOffsets(packet, candidate) }))
+    .sort((left, right) => right.score - left.score)[0];
+
+  if (!offsets || offsets.score < 0) {
+    const velocityX = f32(packet, sled.velocityX);
+    const velocityY = f32(packet, sled.velocityY);
+    const velocityZ = f32(packet, sled.velocityZ);
+    const speedMs = Math.hypot(velocityX, velocityY, velocityZ);
+
+    lastPacketInfo = { length: packet.length, format: "forza-sled", dashShift: null };
+
+    return {
+      timestamp: Date.now(),
+      connected: true,
+      vehicle: {
+        speedKmh: Math.max(0, speedMs * 3.6),
+        rpm: Math.max(0, f32(packet, sled.currentRpm)),
+        maxRpm: Math.max(0, f32(packet, sled.engineMaxRpm)),
+        gear: 0
+      },
+      input: {
+        throttle: 0,
+        brake: 0,
+        steer: 0
+      },
+      motion: {
+        accelX: f32(packet, sled.accelX),
+        accelY: f32(packet, sled.accelY),
+        accelZ: f32(packet, sled.accelZ)
+      }
+    };
   }
 
-  function u8(offset) {
-    requireLength(offset, 1);
-    return packet.readUInt8(offset);
-  }
-
-  function i8(offset) {
-    requireLength(offset, 1);
-    return packet.readInt8(offset);
-  }
-
-  function ratio(value) {
-    return Math.max(0, Math.min(1, value / 255));
-  }
-
-  function gear(raw) {
-    if (raw === 0) return -1;
-    if (raw === 1) return 0;
-    return raw - 1;
-  }
+  const o = offsets.candidate;
+  lastPacketInfo = {
+    length: packet.length,
+    format: o.name,
+    dashShift: o.speedMs - 244
+  };
 
   const snapshot = {
     timestamp: Date.now(),
     connected: true,
     vehicle: {
-      speedKmh: Math.max(0, f32(offsets.speedMs) * 3.6),
-      rpm: Math.max(0, f32(offsets.currentRpm)),
-      maxRpm: Math.max(0, f32(offsets.engineMaxRpm)),
-      gear: gear(u8(offsets.gear)),
-      powerKw: f32(offsets.powerW) / 1000,
-      torqueNm: f32(offsets.torqueNm),
-      boost: f32(offsets.boost)
+      speedKmh: Math.max(0, f32(packet, o.speedMs) * 3.6),
+      rpm: Math.max(0, f32(packet, o.currentRpm)),
+      maxRpm: Math.max(0, f32(packet, o.engineMaxRpm)),
+      gear: normalizeGear(u8(packet, o.gear)),
+      powerKw: f32(packet, o.powerW) / 1000,
+      torqueNm: clampNonNegative(f32(packet, o.torqueNm)),
+      boost: clampNonNegative(f32(packet, o.boost))
     },
     input: {
-      throttle: ratio(u8(offsets.throttle)),
-      brake: ratio(u8(offsets.brake)),
-      clutch: ratio(u8(offsets.clutch)),
-      steer: Math.max(-1, Math.min(1, i8(offsets.steer) / 127)),
-      handbrake: ratio(u8(offsets.handbrake))
+      throttle: ratio(u8(packet, o.throttle)),
+      brake: ratio(u8(packet, o.brake)),
+      clutch: ratio(u8(packet, o.clutch)),
+      steer: Math.max(-1, Math.min(1, i8(packet, o.steer) / 127)),
+      handbrake: ratio(u8(packet, o.handbrake))
     },
     tires: {
-      frontLeftTemp: f32(offsets.tireTempFrontLeft),
-      frontRightTemp: f32(offsets.tireTempFrontRight),
-      rearLeftTemp: f32(offsets.tireTempRearLeft),
-      rearRightTemp: f32(offsets.tireTempRearRight)
+      frontLeftTemp: f32(packet, o.tireTempFrontLeft),
+      frontRightTemp: f32(packet, o.tireTempFrontRight),
+      rearLeftTemp: f32(packet, o.tireTempRearLeft),
+      rearRightTemp: f32(packet, o.tireTempRearRight)
     },
     motion: {
-      accelX: f32(offsets.accelX),
-      accelY: f32(offsets.accelY),
-      accelZ: f32(offsets.accelZ)
+      accelX: f32(packet, o.accelX),
+      accelY: f32(packet, o.accelY),
+      accelZ: f32(packet, o.accelZ)
     }
   };
 
   if (config.debugPacket) {
     console.log("[packet]", {
       length: packet.length,
+      format: o.name,
+      dashShift: o.speedMs - 244,
       speedKmh: snapshot.vehicle.speedKmh,
       rpm: snapshot.vehicle.rpm,
       gear: snapshot.vehicle.gear
@@ -178,6 +210,72 @@ function parseForzaPacket(packet) {
   }
 
   return snapshot;
+}
+
+function scoreOffsets(packet, offsets) {
+  try {
+    const speedKmh = f32(packet, offsets.speedMs) * 3.6;
+    const powerKw = f32(packet, offsets.powerW) / 1000;
+    const torqueNm = f32(packet, offsets.torqueNm);
+    const tireTemps = [
+      f32(packet, offsets.tireTempFrontLeft),
+      f32(packet, offsets.tireTempFrontRight),
+      f32(packet, offsets.tireTempRearLeft),
+      f32(packet, offsets.tireTempRearRight)
+    ];
+    const boost = f32(packet, offsets.boost);
+    const gearRaw = u8(packet, offsets.gear);
+
+    let score = 0;
+    if (isReasonable(speedKmh, 0, 650)) score += 3;
+    if (isReasonable(powerKw, -1500, 2500)) score += 2;
+    if (isReasonable(torqueNm, -2000, 3000)) score += 2;
+    score += tireTemps.filter((value) => isReasonable(value, -50, 350)).length;
+    if (isReasonable(boost, -5, 20)) score += 1;
+    if (gearRaw >= 0 && gearRaw <= 12) score += 2;
+    return score;
+  } catch {
+    return -1;
+  }
+}
+
+function isReasonable(value, min, max) {
+  return Number.isFinite(value) && value >= min && value <= max;
+}
+
+function f32(packet, offset) {
+  requireLength(packet, offset, 4);
+  return packet.readFloatLE(offset);
+}
+
+function u8(packet, offset) {
+  requireLength(packet, offset, 1);
+  return packet.readUInt8(offset);
+}
+
+function i8(packet, offset) {
+  requireLength(packet, offset, 1);
+  return packet.readInt8(offset);
+}
+
+function requireLength(packet, offset, bytes) {
+  if (packet.length < offset + bytes) {
+    throw new Error(`Packet length ${packet.length} is too short for offset ${offset}`);
+  }
+}
+
+function ratio(value) {
+  return Math.max(0, Math.min(1, value / 255));
+}
+
+function clampNonNegative(value) {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function normalizeGear(raw) {
+  if (raw === 0) return -1;
+  if (raw === 1) return 0;
+  return raw - 1;
 }
 
 function createMockTelemetrySnapshot(now = Date.now()) {
@@ -256,7 +354,8 @@ const server = http.createServer((request, response) => {
       broadcastHz: config.broadcastHz,
       broadcastIntervalMs: config.broadcastIntervalMs,
       mockTelemetry: config.mockTelemetry,
-      connectionTimeoutMs: config.connectionTimeoutMs
+      connectionTimeoutMs: config.connectionTimeoutMs,
+      lastPacket: lastPacketInfo
     });
     return;
   }

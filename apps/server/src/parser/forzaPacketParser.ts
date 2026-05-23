@@ -1,6 +1,7 @@
 import type { TelemetrySnapshot } from "../telemetry/telemetryTypes.js";
 
 type PacketOffsets = {
+  name: string;
   engineMaxRpm: number;
   currentRpm: number;
   accelX: number;
@@ -22,26 +23,47 @@ type PacketOffsets = {
   steer: number;
 };
 
-const FORZA_DASH_OFFSETS: PacketOffsets = {
+function createDashOffsets(name: string, dashShift = 0): PacketOffsets {
+  return {
+    name,
+    engineMaxRpm: 8,
+    currentRpm: 16,
+    accelX: 20,
+    accelY: 24,
+    accelZ: 28,
+    speedMs: 244 + dashShift,
+    powerW: 248 + dashShift,
+    torqueNm: 252 + dashShift,
+    tireTempFrontLeft: 256 + dashShift,
+    tireTempFrontRight: 260 + dashShift,
+    tireTempRearLeft: 264 + dashShift,
+    tireTempRearRight: 268 + dashShift,
+    boost: 272 + dashShift,
+    throttle: 303 + dashShift,
+    brake: 304 + dashShift,
+    clutch: 305 + dashShift,
+    handbrake: 306 + dashShift,
+    gear: 307 + dashShift,
+    steer: 308 + dashShift
+  };
+}
+
+const FORZA_DASH_OFFSETS: PacketOffsets = createDashOffsets("forza-dash", 0);
+
+// Forza Horizon 5 Dash packets include a 12-byte Horizon-specific placeholder
+// after the Sled section, so dashboard fields such as speed, gear, and torque
+// are shifted by 12 bytes compared with the Motorsport/FM7 Dash layout.
+const FORZA_HORIZON_DASH_OFFSETS: PacketOffsets = createDashOffsets("forza-horizon-dash", 12);
+
+const SLED_OFFSETS = {
   engineMaxRpm: 8,
   currentRpm: 16,
   accelX: 20,
   accelY: 24,
   accelZ: 28,
-  speedMs: 244,
-  powerW: 248,
-  torqueNm: 252,
-  tireTempFrontLeft: 256,
-  tireTempFrontRight: 260,
-  tireTempRearLeft: 264,
-  tireTempRearRight: 268,
-  boost: 272,
-  throttle: 303,
-  brake: 304,
-  clutch: 305,
-  handbrake: 306,
-  gear: 307,
-  steer: 308
+  velocityX: 32,
+  velocityY: 36,
+  velocityZ: 40
 };
 
 export type ForzaPacketParserOptions = {
@@ -77,6 +99,10 @@ function steerToRatio(value: number): number {
   return Math.max(-1, Math.min(1, value / 127));
 }
 
+function clampNonNegative(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
 function normalizeGear(rawGear: number): number {
   // Common Forza Data Out mapping is 0=reverse, 1=neutral, 2=first gear.
   if (rawGear === 0) {
@@ -88,16 +114,84 @@ function normalizeGear(rawGear: number): number {
   return rawGear - 1;
 }
 
+function isReasonable(value: number, min: number, max: number): boolean {
+  return Number.isFinite(value) && value >= min && value <= max;
+}
+
+function scoreOffsets(packet: Buffer, offsets: PacketOffsets): number {
+  try {
+    const speedKmh = readFloat(packet, offsets.speedMs) * 3.6;
+    const powerKw = readFloat(packet, offsets.powerW) / 1000;
+    const torqueNm = readFloat(packet, offsets.torqueNm);
+    const tireTemps = [
+      readFloat(packet, offsets.tireTempFrontLeft),
+      readFloat(packet, offsets.tireTempFrontRight),
+      readFloat(packet, offsets.tireTempRearLeft),
+      readFloat(packet, offsets.tireTempRearRight)
+    ];
+    const boost = readFloat(packet, offsets.boost);
+    const gearRaw = readUInt8(packet, offsets.gear);
+
+    let score = 0;
+    if (isReasonable(speedKmh, 0, 650)) score += 3;
+    if (isReasonable(powerKw, -1500, 2500)) score += 2;
+    if (isReasonable(torqueNm, -2000, 3000)) score += 2;
+    score += tireTemps.filter((value) => isReasonable(value, -50, 350)).length;
+    if (isReasonable(boost, -5, 20)) score += 1;
+    if (gearRaw >= 0 && gearRaw <= 12) score += 2;
+    return score;
+  } catch {
+    return -1;
+  }
+}
+
+function chooseOffsets(packet: Buffer): PacketOffsets | null {
+  const candidates = [FORZA_HORIZON_DASH_OFFSETS, FORZA_DASH_OFFSETS];
+  const ranked = candidates
+    .map((offsets) => ({ offsets, score: scoreOffsets(packet, offsets) }))
+    .sort((left, right) => right.score - left.score);
+
+  return ranked[0]?.score >= 0 ? ranked[0].offsets : null;
+}
+
 export class ForzaPacketParser {
   constructor(
     private readonly options: ForzaPacketParserOptions,
-    private readonly offsets: PacketOffsets = FORZA_DASH_OFFSETS
+    private readonly offsets?: PacketOffsets
   ) {}
 
   // The parser is intentionally offset-based so FH5, FH6, Motorsport, or a
   // changed Dash packet can be supported by swapping the offset map.
   parse(packet: Buffer): TelemetrySnapshot {
-    const o = this.offsets;
+    const o = this.offsets ?? chooseOffsets(packet);
+
+    if (!o) {
+      const velocityX = readFloat(packet, SLED_OFFSETS.velocityX);
+      const velocityY = readFloat(packet, SLED_OFFSETS.velocityY);
+      const velocityZ = readFloat(packet, SLED_OFFSETS.velocityZ);
+      const speedMs = Math.hypot(velocityX, velocityY, velocityZ);
+
+      return {
+        timestamp: Date.now(),
+        connected: true,
+        vehicle: {
+          speedKmh: Math.max(0, speedMs * 3.6),
+          rpm: Math.max(0, readFloat(packet, SLED_OFFSETS.currentRpm)),
+          maxRpm: Math.max(0, readFloat(packet, SLED_OFFSETS.engineMaxRpm)),
+          gear: 0
+        },
+        input: {
+          throttle: 0,
+          brake: 0,
+          steer: 0
+        },
+        motion: {
+          accelX: readFloat(packet, SLED_OFFSETS.accelX),
+          accelY: readFloat(packet, SLED_OFFSETS.accelY),
+          accelZ: readFloat(packet, SLED_OFFSETS.accelZ)
+        }
+      };
+    }
 
     const snapshot: TelemetrySnapshot = {
       timestamp: Date.now(),
@@ -108,8 +202,8 @@ export class ForzaPacketParser {
         maxRpm: Math.max(0, readFloat(packet, o.engineMaxRpm)),
         gear: normalizeGear(readUInt8(packet, o.gear)),
         powerKw: readFloat(packet, o.powerW) / 1000,
-        torqueNm: readFloat(packet, o.torqueNm),
-        boost: readFloat(packet, o.boost)
+        torqueNm: clampNonNegative(readFloat(packet, o.torqueNm)),
+        boost: clampNonNegative(readFloat(packet, o.boost))
       },
       input: {
         throttle: byteToRatio(readUInt8(packet, o.throttle)),
@@ -133,6 +227,7 @@ export class ForzaPacketParser {
 
     if (this.options.debugPacket) {
       console.debug("[packet]", {
+        format: o.name,
         length: packet.length,
         speedKmh: snapshot.vehicle.speedKmh,
         rpm: snapshot.vehicle.rpm,
