@@ -1,0 +1,4 @@
+[workspace]
+members = ["apps/server-rs"]
+resolver = "2"
+

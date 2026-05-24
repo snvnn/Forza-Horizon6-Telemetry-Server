@@ -3,18 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/server",
+    "apps/dashboard"
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "dev:server": "npm run dev -w @forza-telemetry/server",
+    "dev:server": "cargo run -p forza-telemetry-server",
+    "dev:server:node": "npm run dev -w @forza-telemetry/server",
     "dev:dashboard": "npm run dev -w @forza-telemetry/dashboard",
-    "build": "npm run build -w @forza-telemetry/dashboard && npm run build -w @forza-telemetry/server",
-    "typecheck": "npm run typecheck -w @forza-telemetry/server && npm run typecheck -w @forza-telemetry/dashboard",
+    "build": "npm run build -w @forza-telemetry/dashboard && cargo build -p forza-telemetry-server --release",
+    "build:dashboard": "npm run build -w @forza-telemetry/dashboard",
+    "build:server": "cargo build -p forza-telemetry-server --release",
+    "typecheck": "cargo check -p forza-telemetry-server && npm run typecheck -w @forza-telemetry/dashboard",
     "validate:env": "scripts\\validate-env.cmd",
     "standalone": "scripts\\standalone.cmd",
     "smoke:standalone": "scripts\\smoke-standalone.cmd",
-    "start": "npm run start -w @forza-telemetry/server"
+    "start": "target\\release\\forza-telemetry-server.exe",
+    "start:node": "npm run start -w @forza-telemetry/server"
   },
   "engines": {
     "node": ">=20.0.0"

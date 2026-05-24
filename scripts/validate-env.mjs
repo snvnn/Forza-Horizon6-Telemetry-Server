@@ -188,6 +188,12 @@ record(".env", existsSync(envPath), existsSync(envPath) ? envPath : "missing; co
 const npm = findNpmCommand();
 record("npm", Boolean(npm.version), npm.version ? `${npm.version} (${npm.label})` : npm.error, true);
 
+const rustc = spawnCommand("rustc", ["--version"]);
+record("Rust compiler", rustc.status === 0, rustc.status === 0 ? rustc.stdout.trim() : rustc.stderr || rustc.error?.message || "rustc not found", true);
+
+const cargo = spawnCommand("cargo", ["--version"]);
+record("Cargo", cargo.status === 0, cargo.status === 0 ? cargo.stdout.trim() : cargo.stderr || cargo.error?.message || "cargo not found", true);
+
 if (npm.version) {
   const cachePath = getConfiguredCache(npm);
   try {

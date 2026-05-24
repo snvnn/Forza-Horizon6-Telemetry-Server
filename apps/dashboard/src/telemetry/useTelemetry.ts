@@ -26,14 +26,25 @@ export function useTelemetry() {
   }, [client]);
 
   useEffect(() => {
-    // React rendering is throttled separately from WebSocket receive. The client
-    // may receive 60Hz messages, but state updates happen only at VITE_RENDER_HZ.
-    const timer = window.setInterval(() => {
-      setSnapshot(client.getLatest());
-    }, renderIntervalMs);
+    let animationFrameId = 0;
+    let lastRenderAt = performance.now();
+
+    const renderLoop = (now: number) => {
+      // React rendering is throttled separately from WebSocket receive. Messages
+      // update the latest ref immediately; requestAnimationFrame only copies it
+      // into React state when the VITE_RENDER_HZ budget allows a new frame.
+      if (now - lastRenderAt >= renderIntervalMs) {
+        setSnapshot(client.getLatest());
+        lastRenderAt = now;
+      }
+
+      animationFrameId = window.requestAnimationFrame(renderLoop);
+    };
+
+    animationFrameId = window.requestAnimationFrame(renderLoop);
 
     return () => {
-      window.clearInterval(timer);
+      window.cancelAnimationFrame(animationFrameId);
     };
   }, [client, renderIntervalMs]);
 

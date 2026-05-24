@@ -4,7 +4,7 @@ const npmExecPath = process.env.npm_execpath;
 const npmCommand = npmExecPath ? process.execPath : process.platform === "win32" ? "npm.cmd" : "npm";
 
 const commands = [
-  ["server", ["run", "dev", "-w", "@forza-telemetry/server"]],
+  ["server-rs", ["run", "dev:server"]],
   ["dashboard", ["run", "dev", "-w", "@forza-telemetry/dashboard"]]
 ];
 
