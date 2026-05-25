@@ -107,7 +107,10 @@ fn try_parse_dash_profile(packet: &[u8], profile: DashProfile) -> DashCandidate 
                 profile,
                 accepted: false,
                 score: 0,
-                errors: vec![format!("length={} expected {expected_length}", packet.len())],
+                errors: vec![format!(
+                    "length={} expected {expected_length}",
+                    packet.len()
+                )],
                 warnings,
                 values: None,
                 snapshot: None,
@@ -222,7 +225,13 @@ fn parse_dash_values(
         score += 2;
     }
     for (index, temp_f) in tire_temps_f.iter().enumerate() {
-        if validate_range(warnings, &format!("tireTempF[{index}]"), *temp_f, -40.0, 450.0) {
+        if validate_range(
+            warnings,
+            &format!("tireTempF[{index}]"),
+            *temp_f,
+            -40.0,
+            450.0,
+        ) {
             score += 1;
         }
     }
@@ -278,10 +287,19 @@ fn parse_sled_fallback(packet: &[u8]) -> Result<TelemetrySnapshot, String> {
     let mut errors = Vec::new();
     validate_range(&mut errors, "sledSpeedKmh", speed_kmh, 0.0, 650.0);
     validate_range(&mut errors, "sledCurrentRpm", current_rpm, 0.0, 25000.0);
-    validate_range(&mut errors, "sledEngineMaxRpm", engine_max_rpm, 0.0, 25000.0);
+    validate_range(
+        &mut errors,
+        "sledEngineMaxRpm",
+        engine_max_rpm,
+        0.0,
+        25000.0,
+    );
 
     if !errors.is_empty() {
-        return Err(format!("No valid Forza parser profile. {}", errors.join("; ")));
+        return Err(format!(
+            "No valid Forza parser profile. {}",
+            errors.join("; ")
+        ));
     }
 
     Ok(TelemetrySnapshot {
@@ -462,13 +480,7 @@ fn normalize_gear(raw_gear: u8) -> i32 {
     }
 }
 
-fn validate_range(
-    warnings: &mut Vec<String>,
-    name: &str,
-    value: f64,
-    min: f64,
-    max: f64,
-) -> bool {
+fn validate_range(warnings: &mut Vec<String>, name: &str, value: f64, min: f64, max: f64) -> bool {
     if value.is_finite() && value >= min && value <= max {
         true
     } else {
@@ -541,4 +553,3 @@ mod tests {
             .any(|candidate| !candidate.warnings.is_empty()));
     }
 }
-

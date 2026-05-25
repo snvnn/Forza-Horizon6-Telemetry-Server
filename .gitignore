@@ -2,6 +2,8 @@ node_modules/
 dist/
 target/
 .env
+config.json
 .npm-cache/
 git-meta/
+release/
 *.log

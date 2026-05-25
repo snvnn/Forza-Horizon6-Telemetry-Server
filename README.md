@@ -98,7 +98,7 @@ npm.cmd start
 
 - PC 확인: `http://localhost:3000`
 - 태블릿 접속: `http://192.168.0.x:3000`
-- 실행 파일: `target\release\forza-telemetry-server.exe`
+- 실행 파일: `target\release\sim-telemetry-server.exe`
 
 ## Mock telemetry
 
@@ -212,7 +212,7 @@ http://192.168.0.25:5173
 1. Windows 보안
 2. 방화벽 및 네트워크 보호
 3. 방화벽에서 앱 허용
-4. `forza-telemetry-server.exe` 또는 개발 중 사용하는 `cargo.exe`/`node.exe`가 개인 네트워크에서 허용되어 있는지 확인
+4. `sim-telemetry-server.exe` 또는 개발 중 사용하는 `cargo.exe`/`node.exe`가 개인 네트워크에서 허용되어 있는지 확인
 
 기본 포트:
 
@@ -302,4 +302,3 @@ Rust 파서는 FH6 공식 Data Out 324-byte 포맷을 우선 사용합니다.
 파서는 `apps/server-rs/src/parser/fh6_offsets.rs`에 offset map을 분리해 두었습니다. 나중에 Forza Horizon 5, Forza Horizon 6, Forza Motorsport 등으로 parser를 바꿀 때 이 영역을 중심으로 교체하면 됩니다.
 
 `DEBUG_PACKET=true`를 설정하면 packet length, 선택된 profile, 주요 필드를 로그로 확인할 수 있습니다. 파싱 실패는 서버를 죽이지 않고 `/api/status`의 `lastPacket`과 로그에 기록됩니다.
-

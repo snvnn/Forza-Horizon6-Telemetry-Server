@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 use tokio::sync::RwLock;
 
@@ -7,7 +10,7 @@ use super::telemetry_types::{now_millis, TelemetryPacketInfo, TelemetrySnapshot}
 #[derive(Clone)]
 pub struct TelemetryStore {
     inner: Arc<RwLock<TelemetryStoreInner>>,
-    connection_timeout_ms: u64,
+    connection_timeout_ms: Arc<AtomicU64>,
 }
 
 #[derive(Default)]
@@ -22,7 +25,7 @@ impl TelemetryStore {
     pub fn new(connection_timeout_ms: u64) -> Self {
         Self {
             inner: Arc::new(RwLock::new(TelemetryStoreInner::default())),
-            connection_timeout_ms,
+            connection_timeout_ms: Arc::new(AtomicU64::new(connection_timeout_ms)),
         }
     }
 
@@ -72,6 +75,13 @@ impl TelemetryStore {
         self.inner.write().await.last_packet_info = Some(packet_info);
     }
 
+    pub async fn mark_disconnected(&self) -> Option<TelemetrySnapshot> {
+        let mut inner = self.inner.write().await;
+        let latest = inner.latest.as_mut()?;
+        latest.connected = false;
+        Some(latest.clone())
+    }
+
     pub async fn sequence(&self) -> u64 {
         self.inner.read().await.sequence
     }
@@ -81,8 +91,13 @@ impl TelemetryStore {
         self.is_connected_at(inner.last_packet_at, now_millis())
     }
 
+    pub fn set_connection_timeout_ms(&self, connection_timeout_ms: u64) {
+        self.connection_timeout_ms
+            .store(connection_timeout_ms, Ordering::Relaxed);
+    }
+
     fn is_connected_at(&self, last_packet_at: u64, now: u64) -> bool {
-        last_packet_at > 0 && now.saturating_sub(last_packet_at) <= self.connection_timeout_ms
+        let connection_timeout_ms = self.connection_timeout_ms.load(Ordering::Relaxed);
+        last_packet_at > 0 && now.saturating_sub(last_packet_at) <= connection_timeout_ms
     }
 }
-

@@ -1,25 +1,20 @@
-use std::net::SocketAddr;
-
-use tokio::net::UdpSocket;
+use tokio::{net::UdpSocket, select, sync::watch};
 
 use crate::{
-    config::AppConfig,
     parser::forza_packet_parser::ForzaPacketParser,
     telemetry::{
-        telemetry_broadcaster::TelemetryBroadcaster,
-        telemetry_store::TelemetryStore,
+        telemetry_broadcaster::TelemetryBroadcaster, telemetry_store::TelemetryStore,
         telemetry_types::TelemetryPacketInfo,
     },
 };
 
 pub async fn run_forza_udp_receiver(
-    config: AppConfig,
+    socket: UdpSocket,
     store: TelemetryStore,
     parser: ForzaPacketParser,
     broadcaster: TelemetryBroadcaster,
+    mut stop_rx: watch::Receiver<bool>,
 ) -> std::io::Result<()> {
-    let bind_addr = SocketAddr::new(config.host, config.udp_port);
-    let socket = UdpSocket::bind(bind_addr).await?;
     tracing::info!(
         address = %socket.local_addr()?,
         "listening for Forza Data Out UDP packets"
@@ -30,7 +25,18 @@ pub async fn run_forza_udp_receiver(
     loop {
         // UDP receive stays on the hot path: parse immediately, overwrite the
         // latest in-memory snapshot, then request a capped WebSocket broadcast.
-        let (length, remote) = socket.recv_from(&mut packet).await?;
+        let receive_result = select! {
+            changed = stop_rx.changed() => {
+                if changed.is_err() || *stop_rx.borrow() {
+                    tracing::info!("UDP receiver stop requested");
+                    break;
+                }
+                continue;
+            }
+            result = socket.recv_from(&mut packet) => result,
+        };
+
+        let (length, remote) = receive_result?;
         let packet_slice = &packet[..length];
 
         match parser.parse(packet_slice) {
@@ -60,5 +66,6 @@ pub async fn run_forza_udp_receiver(
             }
         }
     }
-}
 
+    Ok(())
+}

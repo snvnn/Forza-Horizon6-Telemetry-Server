@@ -1,0 +1,11 @@
+{
+  "gameAdapter": "forza-horizon-6",
+  "httpHost": "0.0.0.0",
+  "httpPort": 3000,
+  "udpHost": "0.0.0.0",
+  "udpPort": 5400,
+  "broadcastHz": 60,
+  "connectionTimeoutMs": 2000,
+  "mockTelemetry": false,
+  "debugPacket": false
+}

@@ -12,6 +12,7 @@ use super::telemetry_types::TelemetrySnapshot;
 pub struct TelemetryBroadcaster {
     request_tx: watch::Sender<Option<TelemetrySnapshot>>,
     watch_tx: watch::Sender<Option<TelemetrySnapshot>>,
+    interval_tx: watch::Sender<Duration>,
 }
 
 impl TelemetryBroadcaster {
@@ -19,12 +20,18 @@ impl TelemetryBroadcaster {
         let interval = Duration::from_secs_f64(1.0 / broadcast_hz);
         let (request_tx, request_rx) = watch::channel(None);
         let (watch_tx, _) = watch::channel(None);
+        let (interval_tx, interval_rx) = watch::channel(interval);
 
-        tokio::spawn(run_broadcast_loop(request_rx, watch_tx.clone(), interval));
+        tokio::spawn(run_broadcast_loop(
+            request_rx,
+            watch_tx.clone(),
+            interval_rx,
+        ));
 
         Self {
             request_tx,
             watch_tx,
+            interval_tx,
         }
     }
 
@@ -41,13 +48,19 @@ impl TelemetryBroadcaster {
         // only replace the pending latest snapshot; old frames are intentionally dropped.
         self.request_tx.send_replace(Some(snapshot));
     }
+
+    pub fn set_broadcast_hz(&self, broadcast_hz: f64) {
+        let interval = Duration::from_secs_f64(1.0 / broadcast_hz);
+        self.interval_tx.send_replace(interval);
+    }
 }
 
 async fn run_broadcast_loop(
     mut request_rx: watch::Receiver<Option<TelemetrySnapshot>>,
     watch_tx: watch::Sender<Option<TelemetrySnapshot>>,
-    interval: Duration,
+    mut interval_rx: watch::Receiver<Duration>,
 ) {
+    let mut interval = *interval_rx.borrow();
     let mut pending: Option<TelemetrySnapshot> = None;
     let mut last_sent = Instant::now() - interval;
 
@@ -69,6 +82,13 @@ async fn run_broadcast_loop(
         }
 
         select! {
+            changed = interval_rx.changed() => {
+                if changed.is_err() {
+                    break;
+                }
+                interval = *interval_rx.borrow();
+                last_sent = Instant::now() - interval;
+            }
             changed = request_rx.changed() => {
                 if changed.is_err() {
                     break;

@@ -14,11 +14,12 @@
     "build": "npm run build -w @forza-telemetry/dashboard && cargo build -p forza-telemetry-server --release",
     "build:dashboard": "npm run build -w @forza-telemetry/dashboard",
     "build:server": "cargo build -p forza-telemetry-server --release",
+    "package:windows": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -ExecutionPolicy Bypass -File scripts\\package-windows.ps1",
     "typecheck": "cargo check -p forza-telemetry-server && npm run typecheck -w @forza-telemetry/dashboard",
     "validate:env": "scripts\\validate-env.cmd",
     "standalone": "scripts\\standalone.cmd",
     "smoke:standalone": "scripts\\smoke-standalone.cmd",
-    "start": "target\\release\\forza-telemetry-server.exe",
+    "start": "target\\release\\sim-telemetry-server.exe",
     "start:node": "npm run start -w @forza-telemetry/server"
   },
   "engines": {

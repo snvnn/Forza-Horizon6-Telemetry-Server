@@ -86,4 +86,3 @@ const fn create_dash_offsets(dash_shift: usize) -> PacketOffsets {
         steer: 308 + dash_shift,
     }
 }
-

@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    collections::BTreeMap,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -105,4 +108,3 @@ pub fn now_millis() -> u64 {
         .map(|duration| duration.as_millis() as u64)
         .unwrap_or(0)
 }
-

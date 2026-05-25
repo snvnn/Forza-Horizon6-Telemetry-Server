@@ -3,6 +3,10 @@ name = "forza-telemetry-server"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "sim-telemetry-server"
+path = "src/main.rs"
+
 [dependencies]
 axum = { version = "0.8", features = ["ws"] }
 serde = { version = "1.0", features = ["derive"] }
