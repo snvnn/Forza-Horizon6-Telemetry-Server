@@ -3122,3 +3122,477 @@ h1 {
     grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.85fr);
   }
 }
+
+.time-attack-dashboard {
+  color: #f8fafc;
+}
+
+.time-attack-dashboard .ta-header h1 {
+  color: #facc15;
+}
+
+.ta-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ta-main {
+  display: grid;
+  grid-template-rows: auto minmax(116px, 0.95fr) minmax(86px, 0.7fr) auto minmax(92px, 0.46fr);
+  gap: 0;
+  min-width: 0;
+  min-height: 0;
+  padding-right: 12px;
+  overflow: hidden;
+  border-right: 1px solid #26313c;
+}
+
+.ta-status-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid #26313c;
+  color: #9aa6b2;
+  font-size: 0.82rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.ta-status-line strong {
+  color: #f8fafc;
+  font-size: 0.92rem;
+}
+
+.ta-delta,
+.ta-current-lap {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  border-bottom: 1px solid #26313c;
+}
+
+.ta-delta {
+  padding: 4px 10px 8px;
+  border-left: 5px solid #facc15;
+}
+
+.ta-delta-green {
+  border-left-color: #22c55e;
+}
+
+.ta-delta-red {
+  border-left-color: #ef4444;
+}
+
+.ta-delta span,
+.ta-current-lap span,
+.ta-gear span,
+.ta-speed span,
+.ta-rpm span,
+.ta-panel h2,
+.ta-metric span {
+  color: #9aa6b2;
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.ta-delta strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: clamp(4rem, 13vw, 12rem);
+  font-weight: 950;
+  line-height: 0.88;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ta-delta-green strong {
+  color: #22c55e;
+}
+
+.ta-delta-red strong {
+  color: #ef4444;
+}
+
+.ta-no-timing .ta-delta strong,
+.ta-no-timing .ta-current-lap strong {
+  color: #dce6ef;
+  font-size: clamp(2.5rem, 7vw, 5.4rem);
+}
+
+.ta-current-lap {
+  padding: 4px 10px 8px;
+}
+
+.ta-current-lap strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: clamp(3.2rem, 8vw, 7.2rem);
+  font-weight: 950;
+  line-height: 0.95;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ta-lap-row,
+.ta-car-strip,
+.ta-grid,
+.ta-gforce-values {
+  display: grid;
+  gap: 0;
+}
+
+.ta-lap-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid #26313c;
+}
+
+.ta-car-strip {
+  grid-template-columns: minmax(118px, 0.68fr) minmax(180px, 1fr) minmax(150px, 0.82fr);
+  align-items: stretch;
+  min-height: 0;
+}
+
+.ta-gear,
+.ta-speed,
+.ta-rpm {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: 8px 10px;
+  border-left: 1px solid #26313c;
+}
+
+.ta-gear {
+  border-left: 0;
+}
+
+.ta-gear strong {
+  color: #facc15;
+  font-size: clamp(4rem, 8.5vw, 8.8rem);
+  font-weight: 950;
+  line-height: 0.85;
+}
+
+.ta-speed strong,
+.ta-rpm strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: clamp(2.7rem, 5vw, 5.4rem);
+  font-weight: 950;
+  line-height: 0.92;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ta-speed em {
+  color: #9aa6b2;
+  font-size: 0.86rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.ta-side {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  padding-left: 12px;
+  overflow: hidden;
+}
+
+.ta-panel {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 0;
+  overflow: hidden;
+  border-bottom: 1px solid #26313c;
+}
+
+.ta-panel:last-child {
+  border-bottom: 0;
+}
+
+.ta-panel h2 {
+  margin: 0;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #26313c;
+  color: #facc15;
+}
+
+.ta-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ta-metric {
+  min-width: 0;
+  min-height: 48px;
+  padding: 7px 8px;
+  border-left: 2px solid #3b4652;
+}
+
+.ta-metric:nth-child(n + 3) {
+  border-top: 1px solid #1d252e;
+}
+
+.ta-metric-green {
+  border-left-color: #22c55e;
+}
+
+.ta-metric-red {
+  border-left-color: #ef4444;
+}
+
+.ta-metric-yellow {
+  border-left-color: #facc15;
+}
+
+.ta-metric-cyan {
+  border-left-color: #38bdf8;
+}
+
+.ta-metric strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 1.28rem;
+  font-weight: 950;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ta-metric em {
+  margin-left: 5px;
+  color: #9aa6b2;
+  font-size: 0.7rem;
+  font-style: normal;
+}
+
+.ta-gforce {
+  display: grid;
+  grid-template-columns: minmax(138px, 0.9fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
+}
+
+.ta-gforce svg {
+  display: block;
+  width: min(100%, 220px);
+  aspect-ratio: 1;
+}
+
+.ta-gforce-values {
+  grid-template-columns: 1fr;
+}
+
+.ta-gforce-values .ta-metric {
+  min-height: 42px;
+}
+
+@media (max-width: 900px) {
+  .time-attack-stage {
+    height: auto;
+    min-height: 100svh;
+    overflow: auto;
+  }
+
+  .ta-layout {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .ta-main {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .ta-side {
+    padding-left: 0;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 950px) {
+  .time-attack-dashboard {
+    gap: 0;
+    padding: 5px 7px;
+  }
+
+  .time-attack-dashboard .race-header {
+    min-height: 38px;
+    padding: 3px 0 5px;
+  }
+
+  .time-attack-dashboard .race-kicker {
+    display: none;
+  }
+
+  .time-attack-dashboard .race-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .time-attack-dashboard .race-header-metrics {
+    grid-auto-columns: minmax(52px, auto);
+  }
+
+  .time-attack-dashboard .race-header-metrics .race-metric {
+    min-height: 30px;
+    padding: 3px 5px;
+  }
+
+  .time-attack-dashboard .race-header-metrics .race-metric span {
+    font-size: 0.48rem;
+  }
+
+  .time-attack-dashboard .race-header-metrics .race-metric strong {
+    font-size: 0.68rem;
+  }
+
+  .time-attack-dashboard .race-shift-rail {
+    min-height: 15px;
+    margin-bottom: 3px;
+    padding: 2px 0 3px;
+  }
+
+  .time-attack-dashboard .race-shift-dot {
+    max-width: 9px;
+  }
+
+  .ta-layout {
+    grid-template-columns: minmax(0, 1.18fr) minmax(238px, 0.82fr);
+    overflow: hidden;
+  }
+
+  .ta-main {
+    grid-template-rows: 22px minmax(62px, 0.88fr) minmax(48px, 0.58fr) minmax(42px, auto) minmax(58px, 0.42fr);
+    padding-right: 7px;
+    border-right: 1px solid #26313c;
+  }
+
+  .ta-status-line {
+    min-height: 22px;
+    padding: 0 2px 3px;
+    font-size: 0.52rem;
+  }
+
+  .ta-status-line strong {
+    font-size: 0.56rem;
+  }
+
+  .ta-delta,
+  .ta-current-lap {
+    padding: 2px 5px 4px;
+  }
+
+  .ta-delta span,
+  .ta-current-lap span,
+  .ta-gear span,
+  .ta-speed span,
+  .ta-rpm span,
+  .ta-panel h2,
+  .ta-metric span {
+    font-size: 0.5rem;
+  }
+
+  .ta-delta strong {
+    font-size: clamp(3rem, 11vw, 5.1rem);
+  }
+
+  .ta-current-lap strong {
+    font-size: clamp(2.05rem, 6.5vw, 3.35rem);
+  }
+
+  .ta-car-strip {
+    grid-template-columns: minmax(58px, 0.6fr) minmax(92px, 1fr) minmax(78px, 0.82fr);
+  }
+
+  .ta-gear,
+  .ta-speed,
+  .ta-rpm {
+    padding: 3px 5px;
+  }
+
+  .ta-gear strong {
+    font-size: 3.4rem;
+  }
+
+  .ta-speed strong,
+  .ta-rpm strong {
+    font-size: 2rem;
+  }
+
+  .ta-speed em {
+    font-size: 0.5rem;
+  }
+
+  .ta-side {
+    grid-template-rows: auto auto minmax(0, 1fr);
+    padding-left: 7px;
+  }
+
+  .ta-panel {
+    gap: 4px;
+    padding: 4px 0;
+  }
+
+  .ta-panel h2 {
+    padding-bottom: 3px;
+  }
+
+  .ta-metric {
+    min-height: 28px;
+    padding: 4px 5px;
+  }
+
+  .ta-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ta-grid .ta-metric:nth-child(n + 3) {
+    border-top: 0;
+  }
+
+  .ta-metric strong {
+    margin-top: 1px;
+    font-size: 0.72rem;
+  }
+
+  .ta-metric em {
+    font-size: 0.42rem;
+  }
+
+  .ta-gforce {
+    grid-template-columns: minmax(80px, 0.72fr) minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .ta-gforce svg {
+    width: min(100%, 98px);
+  }
+
+  .ta-gforce-values .ta-metric {
+    min-height: 21px;
+    padding: 2px 4px;
+  }
+
+  .ta-gforce-values .ta-metric strong {
+    font-size: 0.62rem;
+  }
+
+  .ta-no-timing .ta-delta strong,
+  .ta-no-timing .ta-current-lap strong {
+    font-size: clamp(1.5rem, 5vw, 2.4rem);
+  }
+}

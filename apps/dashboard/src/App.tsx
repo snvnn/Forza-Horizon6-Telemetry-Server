@@ -23,6 +23,8 @@ type RaceDashboardProps = {
   clientMetrics: TelemetryClientMetrics;
 };
 
+type DashboardLayout = "race" | "time-attack";
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -109,21 +111,41 @@ function gearLabel(gear: number | undefined): string {
   return String(gear);
 }
 
-function hasPositiveValue(value: number | undefined): boolean {
-  return value != null && Number.isFinite(value) && value > 0;
+function validNumberInRange(value: number | undefined, min: number, max: number): number | undefined {
+  if (value == null || !Number.isFinite(value) || value < min || value > max) {
+    return undefined;
+  }
+  return value;
+}
+
+function validRacePosition(value: number | undefined): number | undefined {
+  return validNumberInRange(value, 1, 999);
+}
+
+function validLapNumber(value: number | undefined): number | undefined {
+  return validNumberInRange(value, 1, 999);
+}
+
+function validRaceSeconds(value: number | undefined): number | undefined {
+  return validNumberInRange(value, 0.001, 24 * 60 * 60);
+}
+
+function validRaceDistanceMeters(value: number | undefined): number | undefined {
+  return validNumberInRange(value, 0, 1_000_000);
 }
 
 function shouldShowRaceInfo(snapshot: TelemetrySnapshot): boolean {
   const race = snapshot.race;
-  const lapTimerRunning = hasPositiveValue(race?.currentLapSeconds) && hasPositiveValue(race?.currentRaceTimeSeconds);
-  const completedLapContext = hasPositiveValue(race?.bestLapSeconds) || hasPositiveValue(race?.lastLapSeconds);
+  const lapTimerRunning =
+    validRaceSeconds(race?.currentLapSeconds) != null && validRaceSeconds(race?.currentRaceTimeSeconds) != null;
+  const completedLapContext = validRaceSeconds(race?.bestLapSeconds) != null || validRaceSeconds(race?.lastLapSeconds) != null;
 
   // FH6 can report IsRaceOn during freeroam. Only switch the left panel from
   // inputs to race timing when race-only fields are also valid.
   return (
     race?.active === true &&
-    hasPositiveValue(race.position) &&
-    hasPositiveValue(race.lapNumber) &&
+    validRacePosition(race.position) != null &&
+    validLapNumber(race.lapNumber) != null &&
     (lapTimerRunning || completedLapContext)
   );
 }
@@ -232,6 +254,13 @@ function SteerBar({ value }: { value: number | undefined }) {
       <strong>{Math.round(visualNormalized * 100)}%</strong>
     </div>
   );
+}
+
+function selectedDashboardLayout(): DashboardLayout {
+  const params = new URLSearchParams(window.location.search);
+  const layout = params.get("layout") ?? params.get("dashboard");
+
+  return layout === "time-attack" || layout === "timeattack" ? "time-attack" : "race";
 }
 
 function MetricBox({
@@ -511,17 +540,195 @@ function RaceTelemetryDashboard({
   );
 }
 
-function DashboardApp() {
-  const { snapshot, clientMetrics, connectionStatus, renderHz } = useTelemetry();
+function TimeAttackMetric({
+  label,
+  value,
+  unit,
+  tone
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  tone?: "green" | "red" | "yellow" | "cyan";
+}) {
+  return (
+    <div className={`ta-metric ${tone ? `ta-metric-${tone}` : ""}`}>
+      <span>{label}</span>
+      <strong>
+        {value}
+        {unit ? <em>{unit}</em> : null}
+      </strong>
+    </div>
+  );
+}
+
+function TimeAttackGForce({ snapshot }: { snapshot: TelemetrySnapshot }) {
+  const accelX = snapshot.motion?.accelX ?? 0;
+  const accelZ = snapshot.motion?.accelZ ?? 0;
+  const lateralG = -accelX / METERS_PER_SECOND_SQUARED_PER_G;
+  const longitudinalG = accelZ / METERS_PER_SECOND_SQUARED_PER_G;
+  const totalG = Math.hypot(lateralG, longitudinalG);
+  const markerX = 150 + clamp(lateralG / DISPLAY_MAX_G, -1, 1) * 108;
+  const markerY = 150 + clamp(longitudinalG / DISPLAY_MAX_G, -1, 1) * 108;
 
   return (
-    <main className="dashboard-stage race-stage">
-      <RaceTelemetryDashboard
-        connectionStatus={connectionStatus}
+    <div className="ta-gforce">
+      <svg viewBox="0 0 300 300" role="img" aria-label="G-force load transfer">
+        <circle className="race-g-ring race-g-ring-outer" cx="150" cy="150" r="124" />
+        <circle className="race-g-ring" cx="150" cy="150" r="93" />
+        <circle className="race-g-ring" cx="150" cy="150" r="62" />
+        <circle className="race-g-ring" cx="150" cy="150" r="31" />
+        <line className="race-g-axis" x1="26" x2="274" y1="150" y2="150" />
+        <line className="race-g-axis" x1="150" x2="150" y1="26" y2="274" />
+        <circle className="race-g-dot" cx={markerX} cy={markerY} r="10" />
+      </svg>
+      <div className="ta-gforce-values">
+        <TimeAttackMetric label="Total" unit="G" value={formatNumber(totalG, 2)} />
+        <TimeAttackMetric label="Lat" unit="G" value={formatNumber(lateralG, 2)} />
+        <TimeAttackMetric label="Long" unit="G" value={formatNumber(longitudinalG, 2)} />
+      </div>
+    </div>
+  );
+}
+
+function TimeAttackDashboard({
+  snapshot,
+  connectionStatus,
+  renderHz,
+  clientMetrics
+}: RaceDashboardProps) {
+  const rpmRatio = getRpmRatio(snapshot);
+
+  if (!snapshot) {
+    return (
+      <WaitingDashboard
         clientMetrics={clientMetrics}
+        connectionStatus={connectionStatus}
         renderHz={renderHz}
-        snapshot={snapshot}
       />
+    );
+  }
+
+  const race = snapshot.race;
+  const showRaceInfo = shouldShowRaceInfo(snapshot);
+  const currentLapSeconds = showRaceInfo ? validRaceSeconds(race?.currentLapSeconds) : undefined;
+  const bestLapSeconds = showRaceInfo ? validRaceSeconds(race?.bestLapSeconds) : undefined;
+  const lastLapSeconds = showRaceInfo ? validRaceSeconds(race?.lastLapSeconds) : undefined;
+  const currentRaceTimeSeconds = showRaceInfo ? validRaceSeconds(race?.currentRaceTimeSeconds) : undefined;
+  const lapDelta =
+    currentLapSeconds != null && bestLapSeconds != null
+      ? currentLapSeconds - bestLapSeconds
+      : undefined;
+  const deltaTone = lapDelta == null ? "yellow" : lapDelta <= 0 ? "green" : "red";
+
+  return (
+    <section
+      className={`race-dashboard time-attack-dashboard ${snapshot.connected ? "race-live" : "race-stale"} ${
+        showRaceInfo ? "ta-timed" : "ta-no-timing"
+      }`}
+    >
+      <header className="race-header ta-header">
+        <div>
+          <p className="race-kicker">FORZA HORIZON 6</p>
+          <h1>TIME ATTACK</h1>
+        </div>
+        <div className="race-header-metrics">
+          <MetricBox
+            accent={connectionStatus === "connected" && snapshot.connected ? "green" : "red"}
+            label="Link"
+            value={formatConnection(connectionStatus, snapshot)}
+          />
+          <MetricBox accent="cyan" label="RX" unit="Hz" value={formatHz(clientMetrics.estimatedMessageHz)} />
+          <MetricBox accent="yellow" label="Age" unit="ms" value={formatMilliseconds(clientMetrics.renderSnapshotAgeMs)} />
+          <MetricBox label="UI" unit="ms" value={formatMilliseconds(clientMetrics.receiveToRenderMs)} />
+        </div>
+      </header>
+      <ShiftLights rpmRatio={rpmRatio} />
+      <div className="ta-layout">
+        <section className="ta-main">
+          <div className="ta-status-line">
+            <span>{showRaceInfo ? "TIMED RUN" : "NO TIMED LAP"}</span>
+            <strong>{formatTime(snapshot.timestamp)}</strong>
+          </div>
+          <div className={`ta-delta ta-delta-${deltaTone}`}>
+            <span>Delta</span>
+            <strong>{formatSignedDelta(lapDelta)}</strong>
+          </div>
+          <div className="ta-current-lap">
+            <span>Current Lap</span>
+            <strong>{formatDuration(currentLapSeconds)}</strong>
+          </div>
+          <div className="ta-lap-row">
+            <TimeAttackMetric label="Best" tone="green" value={formatDuration(bestLapSeconds)} />
+            <TimeAttackMetric label="Last" tone="yellow" value={formatDuration(lastLapSeconds)} />
+            <TimeAttackMetric label="Race Time" value={formatDuration(currentRaceTimeSeconds)} />
+          </div>
+          <div className="ta-car-strip">
+            <div className="ta-gear">
+              <span>Gear</span>
+              <strong>{gearLabel(snapshot.vehicle.gear)}</strong>
+            </div>
+            <div className="ta-speed">
+              <span>Speed</span>
+              <strong>{formatSpeedKmh(snapshot.vehicle.speedKmh)}</strong>
+              <em>km/h</em>
+            </div>
+            <div className="ta-rpm">
+              <span>RPM</span>
+              <strong>{formatInteger(snapshot.vehicle.rpm)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <aside className="ta-side">
+          <section className="ta-panel">
+            <h2>Run</h2>
+            <div className="ta-grid">
+              <TimeAttackMetric label="Position" tone="yellow" value={formatInteger(showRaceInfo ? validRacePosition(race?.position) : undefined)} />
+              <TimeAttackMetric label="Lap" tone="cyan" value={formatInteger(showRaceInfo ? validLapNumber(race?.lapNumber) : undefined)} />
+              <TimeAttackMetric label="Fuel" value={showRaceInfo ? formatPercent(race?.fuel) : "--"} />
+              <TimeAttackMetric label="Distance" unit="m" value={formatInteger(showRaceInfo ? validRaceDistanceMeters(race?.distanceTraveledMeters) : undefined)} />
+            </div>
+          </section>
+          <section className="ta-panel">
+            <h2>Inputs</h2>
+            <div className="race-inputs">
+              <InputBar label="Throttle" tone="green" value={snapshot.input.throttle} />
+              <InputBar label="Brake" tone="red" value={snapshot.input.brake} />
+              <SteerBar value={snapshot.input.steer} />
+            </div>
+          </section>
+          <section className="ta-panel ta-compact-g">
+            <h2>G-Force</h2>
+            <TimeAttackGForce snapshot={snapshot} />
+          </section>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function DashboardApp() {
+  const { snapshot, clientMetrics, connectionStatus, renderHz } = useTelemetry();
+  const layout = selectedDashboardLayout();
+
+  return (
+    <main className={`dashboard-stage race-stage ${layout === "time-attack" ? "time-attack-stage" : ""}`}>
+      {layout === "time-attack" ? (
+        <TimeAttackDashboard
+          connectionStatus={connectionStatus}
+          clientMetrics={clientMetrics}
+          renderHz={renderHz}
+          snapshot={snapshot}
+        />
+      ) : (
+        <RaceTelemetryDashboard
+          connectionStatus={connectionStatus}
+          clientMetrics={clientMetrics}
+          renderHz={renderHz}
+          snapshot={snapshot}
+        />
+      )}
     </main>
   );
 }
