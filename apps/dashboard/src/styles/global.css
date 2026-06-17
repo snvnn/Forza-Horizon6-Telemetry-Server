@@ -4340,3 +4340,269 @@ h1 {
     font-size: 0.58rem;
   }
 }
+
+.minimal-dashboard {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 0;
+  color: #f8fafc;
+}
+
+.minimal-topbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px 0 6px;
+  border-bottom: 1px solid #26313c;
+}
+
+.minimal-brand {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+}
+
+.minimal-brand span,
+.minimal-stat span,
+.minimal-gear span,
+.minimal-speed span,
+.minimal-rpm span {
+  color: #9aa6b2;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.minimal-brand strong {
+  color: #f8fafc;
+  font-size: 1.55rem;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.minimal-status,
+.minimal-footer {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 0;
+}
+
+.minimal-status {
+  grid-auto-columns: minmax(78px, auto);
+}
+
+.minimal-main {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.58fr) minmax(0, 1.42fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.minimal-gear,
+.minimal-speed,
+.minimal-rpm {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 16px;
+  overflow: hidden;
+}
+
+.minimal-gear {
+  grid-row: 1 / span 2;
+  border-right: 1px solid #26313c;
+}
+
+.minimal-gear strong {
+  color: #facc15;
+  font-size: clamp(8rem, 22vw, 17rem);
+  font-weight: 950;
+  line-height: 0.82;
+}
+
+.minimal-speed {
+  border-bottom: 1px solid #26313c;
+}
+
+.minimal-speed strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: clamp(8rem, 22vw, 18rem);
+  font-weight: 950;
+  line-height: 0.82;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.minimal-speed em {
+  color: #9aa6b2;
+  font-size: 1.2rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.minimal-rpm strong {
+  color: #f8fafc;
+  font-size: clamp(3.6rem, 7vw, 6.5rem);
+  font-weight: 950;
+  line-height: 0.9;
+}
+
+.minimal-stat {
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px 9px;
+  overflow: hidden;
+  border-left: 2px solid #3b4652;
+  border-bottom: 1px solid #1d252e;
+}
+
+.minimal-stat-green {
+  border-left-color: #22c55e;
+}
+
+.minimal-stat-red {
+  border-left-color: #ef4444;
+}
+
+.minimal-stat-yellow {
+  border-left-color: #facc15;
+}
+
+.minimal-stat-cyan {
+  border-left-color: #38bdf8;
+}
+
+.minimal-stat strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 1.08rem;
+  font-weight: 950;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.minimal-stat em {
+  margin-left: 4px;
+  color: #9aa6b2;
+  font-size: 0.64rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.minimal-footer {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-top: 1px solid #26313c;
+}
+
+@media (max-width: 900px) {
+  .minimal-stage {
+    width: 100vw;
+    height: 100svh;
+    min-height: 100svh;
+    overflow: hidden;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 950px) {
+  .minimal-dashboard {
+    padding: 5px 7px;
+  }
+
+  .minimal-topbar {
+    min-height: 34px;
+    padding: 2px 0 4px;
+  }
+
+  .minimal-brand span {
+    display: none;
+  }
+
+  .minimal-brand strong {
+    font-size: 1.05rem;
+  }
+
+  .minimal-status {
+    grid-auto-columns: minmax(48px, auto);
+  }
+
+  .minimal-status .minimal-stat {
+    min-height: 28px;
+    padding: 3px 5px;
+  }
+
+  .minimal-status .minimal-stat span {
+    font-size: 0.44rem;
+  }
+
+  .minimal-status .minimal-stat strong {
+    font-size: 0.62rem;
+  }
+
+  .minimal-dashboard .race-shift-rail {
+    min-height: 14px;
+    margin: 0 0 2px;
+    padding: 2px 0;
+  }
+
+  .minimal-dashboard .race-shift-dot {
+    max-width: 8px;
+  }
+
+  .minimal-main {
+    grid-template-columns: minmax(82px, 0.52fr) minmax(0, 1.48fr);
+  }
+
+  .minimal-gear,
+  .minimal-speed,
+  .minimal-rpm {
+    padding: 4px 8px;
+  }
+
+  .minimal-gear span,
+  .minimal-speed span,
+  .minimal-rpm span,
+  .minimal-stat span {
+    font-size: 0.46rem;
+  }
+
+  .minimal-gear strong {
+    font-size: clamp(5rem, 17vw, 7rem);
+  }
+
+  .minimal-speed strong {
+    font-size: clamp(5.5rem, 19vw, 8.2rem);
+  }
+
+  .minimal-speed em {
+    font-size: 0.55rem;
+  }
+
+  .minimal-rpm strong {
+    font-size: clamp(2.2rem, 6vw, 3rem);
+  }
+
+  .minimal-stat {
+    min-height: 28px;
+    padding: 3px 5px;
+  }
+
+  .minimal-stat strong {
+    margin-top: 1px;
+    font-size: 0.64rem;
+  }
+
+  .minimal-stat em {
+    margin-left: 2px;
+    font-size: 0.38rem;
+  }
+}

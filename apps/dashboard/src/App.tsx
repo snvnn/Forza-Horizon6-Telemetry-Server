@@ -23,7 +23,7 @@ type RaceDashboardProps = {
   clientMetrics: TelemetryClientMetrics;
 };
 
-type DashboardLayout = "race" | "time-attack" | "engineer" | "mobile-race";
+type DashboardLayout = "race" | "time-attack" | "engineer" | "mobile-race" | "minimal";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -286,6 +286,10 @@ function selectedDashboardLayout(): DashboardLayout {
 
   if (layout === "mobile" || layout === "mobile-race" || layout === "landscape-race") {
     return "mobile-race";
+  }
+
+  if (layout === "minimal" || layout === "minimal-hud" || layout === "hud") {
+    return "minimal";
   }
 
   return "race";
@@ -1074,6 +1078,107 @@ function MobileRaceDashboard({
   );
 }
 
+function MinimalHudStat({
+  label,
+  value,
+  unit,
+  tone
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  tone?: "green" | "red" | "yellow" | "cyan";
+}) {
+  return (
+    <div className={`minimal-stat ${tone ? `minimal-stat-${tone}` : ""}`}>
+      <span>{label}</span>
+      <strong>
+        {value}
+        {unit ? <em>{unit}</em> : null}
+      </strong>
+    </div>
+  );
+}
+
+function MinimalHudDashboard({
+  snapshot,
+  connectionStatus,
+  renderHz,
+  clientMetrics
+}: RaceDashboardProps) {
+  const rpmRatio = getRpmRatio(snapshot);
+
+  if (!snapshot) {
+    return (
+      <WaitingDashboard
+        clientMetrics={clientMetrics}
+        connectionStatus={connectionStatus}
+        renderHz={renderHz}
+      />
+    );
+  }
+
+  const tires = [
+    snapshot.tires?.frontLeftTemp,
+    snapshot.tires?.frontRightTemp,
+    snapshot.tires?.rearLeftTemp,
+    snapshot.tires?.rearRightTemp
+  ];
+  const validTires = tires.filter((value): value is number => value != null && Number.isFinite(value));
+  const hottestTire = validTires.length > 0 ? Math.max(...validTires) : undefined;
+  const coldestTire = validTires.length > 0 ? Math.min(...validTires) : undefined;
+  const tireTone = hottestTire != null && hottestTire > 120 ? "red" : coldestTire != null && coldestTire < 60 ? "cyan" : "green";
+  const accelX = snapshot.motion?.accelX ?? 0;
+  const accelZ = snapshot.motion?.accelZ ?? 0;
+  const lateralG = -accelX / METERS_PER_SECOND_SQUARED_PER_G;
+  const longitudinalG = accelZ / METERS_PER_SECOND_SQUARED_PER_G;
+  const totalG = Math.hypot(lateralG, longitudinalG);
+
+  return (
+    <section className={`race-dashboard minimal-dashboard ${snapshot.connected ? "race-live" : "race-stale"}`}>
+      <header className="minimal-topbar">
+        <div className="minimal-brand">
+          <span>FH6</span>
+          <strong>MINIMAL HUD</strong>
+        </div>
+        <div className="minimal-status">
+          <MinimalHudStat
+            label="Link"
+            tone={connectionStatus === "connected" && snapshot.connected ? "green" : "red"}
+            value={formatConnection(connectionStatus, snapshot)}
+          />
+          <MinimalHudStat label="RX" unit="Hz" tone="cyan" value={formatHz(clientMetrics.estimatedMessageHz)} />
+          <MinimalHudStat label="Age" unit="ms" tone="yellow" value={formatMilliseconds(clientMetrics.renderSnapshotAgeMs)} />
+        </div>
+      </header>
+      <ShiftLights rpmRatio={rpmRatio} />
+      <main className="minimal-main">
+        <section className="minimal-gear">
+          <span>Gear</span>
+          <strong>{gearLabel(snapshot.vehicle.gear)}</strong>
+        </section>
+        <section className="minimal-speed">
+          <span>Speed</span>
+          <strong>{formatSpeedKmh(snapshot.vehicle.speedKmh)}</strong>
+          <em>km/h</em>
+        </section>
+        <section className="minimal-rpm">
+          <span>RPM</span>
+          <strong>{formatInteger(snapshot.vehicle.rpm)}</strong>
+        </section>
+      </main>
+      <footer className="minimal-footer">
+        <MinimalHudStat label="Throttle" value={formatPercent(snapshot.input.throttle)} tone="green" />
+        <MinimalHudStat label="Brake" value={formatPercent(snapshot.input.brake)} tone="red" />
+        <MinimalHudStat label="Steer" value={`${Math.round(clamp(snapshot.input.steer ?? 0, -1, 1) * 100)}%`} tone="cyan" />
+        <MinimalHudStat label="G" unit="G" value={formatNumber(totalG, 2)} />
+        <MinimalHudStat label="Lat" unit="G" value={formatSignedNumber(lateralG, 2)} tone="yellow" />
+        <MinimalHudStat label="Tire" value={formatTemperatureC(hottestTire)} tone={tireTone} />
+      </footer>
+    </section>
+  );
+}
+
 function DashboardApp() {
   const { snapshot, clientMetrics, connectionStatus, renderHz } = useTelemetry();
   const layout = selectedDashboardLayout();
@@ -1087,10 +1192,19 @@ function DashboardApp() {
             ? "engineer-stage"
             : layout === "mobile-race"
               ? "mobile-race-stage"
-              : ""
+              : layout === "minimal"
+                ? "minimal-stage"
+                : ""
       }`}
     >
-      {layout === "mobile-race" ? (
+      {layout === "minimal" ? (
+        <MinimalHudDashboard
+          connectionStatus={connectionStatus}
+          clientMetrics={clientMetrics}
+          renderHz={renderHz}
+          snapshot={snapshot}
+        />
+      ) : layout === "mobile-race" ? (
         <MobileRaceDashboard
           connectionStatus={connectionStatus}
           clientMetrics={clientMetrics}
