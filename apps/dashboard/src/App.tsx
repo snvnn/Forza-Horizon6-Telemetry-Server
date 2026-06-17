@@ -23,7 +23,7 @@ type RaceDashboardProps = {
   clientMetrics: TelemetryClientMetrics;
 };
 
-type DashboardLayout = "race" | "time-attack";
+type DashboardLayout = "race" | "time-attack" | "engineer";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -198,6 +198,22 @@ function formatSignedDelta(seconds: number | undefined): string {
   return `${sign}${formatDuration(Math.abs(seconds))}`;
 }
 
+function formatSignedNumber(value: number | undefined, fractionDigits = 2): string {
+  if (value == null || !Number.isFinite(value)) {
+    return "--";
+  }
+
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(fractionDigits)}`;
+}
+
+function formatBoolean(value: boolean | undefined): string {
+  if (value == null) {
+    return "--";
+  }
+  return value ? "TRUE" : "FALSE";
+}
+
 const ShiftLights = memo(function ShiftLights({ rpmRatio }: { rpmRatio: number }) {
   const activeCount = Math.round(rpmRatio * SHIFT_LIGHT_COUNT);
 
@@ -260,7 +276,15 @@ function selectedDashboardLayout(): DashboardLayout {
   const params = new URLSearchParams(window.location.search);
   const layout = params.get("layout") ?? params.get("dashboard");
 
-  return layout === "time-attack" || layout === "timeattack" ? "time-attack" : "race";
+  if (layout === "time-attack" || layout === "timeattack") {
+    return "time-attack";
+  }
+
+  if (layout === "engineer" || layout === "telemetry" || layout === "telemetry-engineer") {
+    return "engineer";
+  }
+
+  return "race";
 }
 
 function MetricBox({
@@ -708,13 +732,187 @@ function TimeAttackDashboard({
   );
 }
 
+function EngineerCell({
+  label,
+  value,
+  unit,
+  tone
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  tone?: "green" | "red" | "yellow" | "cyan";
+}) {
+  return (
+    <div className={`eng-cell ${tone ? `eng-cell-${tone}` : ""}`}>
+      <span>{label}</span>
+      <strong>
+        {value}
+        {unit ? <em>{unit}</em> : null}
+      </strong>
+    </div>
+  );
+}
+
+function EngineerSection({
+  title,
+  children,
+  className
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`eng-section ${className ?? ""}`}>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function TelemetryEngineerDashboard({
+  snapshot,
+  connectionStatus,
+  renderHz,
+  clientMetrics
+}: RaceDashboardProps) {
+  const rpmRatio = getRpmRatio(snapshot);
+
+  if (!snapshot) {
+    return (
+      <WaitingDashboard
+        clientMetrics={clientMetrics}
+        connectionStatus={connectionStatus}
+        renderHz={renderHz}
+      />
+    );
+  }
+
+  const race = snapshot.race;
+  const validRace = shouldShowRaceInfo(snapshot);
+  const accelX = snapshot.motion?.accelX;
+  const accelY = snapshot.motion?.accelY;
+  const accelZ = snapshot.motion?.accelZ;
+  const lateralG = accelX == null ? undefined : -accelX / METERS_PER_SECOND_SQUARED_PER_G;
+  const longitudinalG = accelZ == null ? undefined : accelZ / METERS_PER_SECOND_SQUARED_PER_G;
+  const totalG =
+    lateralG == null || longitudinalG == null ? undefined : Math.hypot(lateralG, longitudinalG);
+
+  return (
+    <section className={`race-dashboard engineer-dashboard ${snapshot.connected ? "race-live" : "race-stale"}`}>
+      <header className="race-header engineer-header">
+        <div>
+          <p className="race-kicker">NORMALIZED DATA</p>
+          <h1>TELEMETRY ENGINEER</h1>
+        </div>
+        <div className="race-header-metrics">
+          <MetricBox
+            accent={connectionStatus === "connected" && snapshot.connected ? "green" : "red"}
+            label="Link"
+            value={formatConnection(connectionStatus, snapshot)}
+          />
+          <MetricBox accent="cyan" label="RX" unit="Hz" value={formatHz(clientMetrics.estimatedMessageHz)} />
+          <MetricBox accent="yellow" label="Age" unit="ms" value={formatMilliseconds(clientMetrics.renderSnapshotAgeMs)} />
+          <MetricBox label="UI" unit="ms" value={formatMilliseconds(clientMetrics.receiveToRenderMs)} />
+        </div>
+      </header>
+      <ShiftLights rpmRatio={rpmRatio} />
+      <div className="eng-layout">
+        <EngineerSection className="eng-runtime" title="Runtime">
+          <div className="eng-grid eng-grid-2">
+            <EngineerCell
+              label="Game Link"
+              tone={snapshot.connected ? "green" : "red"}
+              value={snapshot.connected ? "CONNECTED" : "STALE"}
+            />
+            <EngineerCell label="Updated" value={formatTime(snapshot.timestamp)} />
+            <EngineerCell label="Messages" value={formatInteger(clientMetrics.receivedMessages)} />
+            <EngineerCell label="Parse Errors" tone={clientMetrics.parseErrors > 0 ? "red" : "green"} value={formatInteger(clientMetrics.parseErrors)} />
+            <EngineerCell label="RX EMA" unit="ms" value={formatMilliseconds(clientMetrics.messageIntervalEmaMs)} />
+            <EngineerCell label="Max Gap" unit="ms" value={formatMilliseconds(clientMetrics.maxMessageGapMs)} />
+          </div>
+        </EngineerSection>
+
+        <EngineerSection className="eng-vehicle" title="Vehicle">
+          <div className="eng-grid eng-grid-3">
+            <EngineerCell label="Speed" unit="km/h" tone="cyan" value={formatSpeedKmh(snapshot.vehicle.speedKmh)} />
+            <EngineerCell label="Gear" tone="yellow" value={gearLabel(snapshot.vehicle.gear)} />
+            <EngineerCell label="RPM" value={formatInteger(snapshot.vehicle.rpm)} />
+            <EngineerCell label="Max RPM" value={formatInteger(snapshot.vehicle.maxRpm)} />
+            <EngineerCell label="Power" unit="kW" value={formatInteger(snapshot.vehicle.powerKw)} />
+            <EngineerCell label="Torque" unit="Nm" value={formatInteger(snapshot.vehicle.torqueNm)} />
+            <EngineerCell label="Boost" value={formatNumber(snapshot.vehicle.boost, 2)} />
+            <EngineerCell label="RPM Ratio" value={formatPercent(rpmRatio)} />
+            <EngineerCell label="Frame Age" unit="ms" value={formatMilliseconds(clientMetrics.renderSnapshotAgeMs)} />
+          </div>
+        </EngineerSection>
+
+        <EngineerSection className="eng-inputs" title="Driver Inputs">
+          <div className="eng-bars">
+            <InputBar label="Throttle" tone="green" value={snapshot.input.throttle} />
+            <InputBar label="Brake" tone="red" value={snapshot.input.brake} />
+            <InputBar label="Clutch" tone="yellow" value={snapshot.input.clutch} />
+            <InputBar label="Handbrake" tone="cyan" value={snapshot.input.handbrake} />
+            <SteerBar value={snapshot.input.steer} />
+          </div>
+        </EngineerSection>
+
+        <EngineerSection className="eng-tires" title="Tires">
+          <div className="eng-tire-table">
+            <EngineerCell label="Front Left" value={formatTemperatureC(snapshot.tires?.frontLeftTemp)} />
+            <EngineerCell label="Front Right" value={formatTemperatureC(snapshot.tires?.frontRightTemp)} />
+            <EngineerCell label="Rear Left" value={formatTemperatureC(snapshot.tires?.rearLeftTemp)} />
+            <EngineerCell label="Rear Right" value={formatTemperatureC(snapshot.tires?.rearRightTemp)} />
+          </div>
+        </EngineerSection>
+
+        <EngineerSection className="eng-motion" title="Motion">
+          <div className="eng-grid eng-grid-3">
+            <EngineerCell label="Accel X" value={formatSignedNumber(accelX, 2)} />
+            <EngineerCell label="Accel Y" value={formatSignedNumber(accelY, 2)} />
+            <EngineerCell label="Accel Z" value={formatSignedNumber(accelZ, 2)} />
+            <EngineerCell label="Lat G" unit="G" tone="cyan" value={formatSignedNumber(lateralG, 2)} />
+            <EngineerCell label="Long G" unit="G" tone="yellow" value={formatSignedNumber(longitudinalG, 2)} />
+            <EngineerCell label="Total G" unit="G" value={formatNumber(totalG, 2)} />
+          </div>
+        </EngineerSection>
+
+        <EngineerSection className="eng-race" title="Race Context">
+          <div className="eng-grid eng-grid-2">
+            <EngineerCell label="Packet Race Flag" tone={race?.active ? "green" : undefined} value={formatBoolean(race?.active)} />
+            <EngineerCell label="Validated" tone={validRace ? "green" : "yellow"} value={validRace ? "TRUE" : "FALSE"} />
+            <EngineerCell label="Position" value={formatInteger(validRace ? validRacePosition(race?.position) : undefined)} />
+            <EngineerCell label="Lap" value={formatInteger(validRace ? validLapNumber(race?.lapNumber) : undefined)} />
+            <EngineerCell label="Current Lap" value={formatDuration(validRace ? validRaceSeconds(race?.currentLapSeconds) : undefined)} />
+            <EngineerCell label="Best Lap" value={formatDuration(validRace ? validRaceSeconds(race?.bestLapSeconds) : undefined)} />
+            <EngineerCell label="Last Lap" value={formatDuration(validRace ? validRaceSeconds(race?.lastLapSeconds) : undefined)} />
+            <EngineerCell label="Fuel" value={validRace ? formatPercent(race?.fuel) : "--"} />
+          </div>
+        </EngineerSection>
+      </div>
+    </section>
+  );
+}
+
 function DashboardApp() {
   const { snapshot, clientMetrics, connectionStatus, renderHz } = useTelemetry();
   const layout = selectedDashboardLayout();
 
   return (
-    <main className={`dashboard-stage race-stage ${layout === "time-attack" ? "time-attack-stage" : ""}`}>
-      {layout === "time-attack" ? (
+    <main
+      className={`dashboard-stage race-stage ${
+        layout === "time-attack" ? "time-attack-stage" : layout === "engineer" ? "engineer-stage" : ""
+      }`}
+    >
+      {layout === "engineer" ? (
+        <TelemetryEngineerDashboard
+          connectionStatus={connectionStatus}
+          clientMetrics={clientMetrics}
+          renderHz={renderHz}
+          snapshot={snapshot}
+        />
+      ) : layout === "time-attack" ? (
         <TimeAttackDashboard
           connectionStatus={connectionStatus}
           clientMetrics={clientMetrics}
