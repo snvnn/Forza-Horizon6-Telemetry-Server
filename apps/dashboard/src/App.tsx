@@ -23,7 +23,7 @@ type RaceDashboardProps = {
   clientMetrics: TelemetryClientMetrics;
 };
 
-type DashboardLayout = "race" | "time-attack" | "engineer";
+type DashboardLayout = "race" | "time-attack" | "engineer" | "mobile-race";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -282,6 +282,10 @@ function selectedDashboardLayout(): DashboardLayout {
 
   if (layout === "engineer" || layout === "telemetry" || layout === "telemetry-engineer") {
     return "engineer";
+  }
+
+  if (layout === "mobile" || layout === "mobile-race" || layout === "landscape-race") {
+    return "mobile-race";
   }
 
   return "race";
@@ -895,6 +899,181 @@ function TelemetryEngineerDashboard({
   );
 }
 
+function MobileRaceStat({
+  label,
+  value,
+  unit,
+  tone
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  tone?: "green" | "red" | "yellow" | "cyan";
+}) {
+  return (
+    <div className={`mobile-race-stat ${tone ? `mobile-race-stat-${tone}` : ""}`}>
+      <span>{label}</span>
+      <strong>
+        {value}
+        {unit ? <em>{unit}</em> : null}
+      </strong>
+    </div>
+  );
+}
+
+function MobileRaceTire({
+  label,
+  value
+}: {
+  label: string;
+  value: number | undefined;
+}) {
+  const tone = tireTempTone(value);
+
+  return (
+    <div className="mobile-race-tire-cell">
+      <span>{label}</span>
+      <strong>{formatTemperatureC(value)}</strong>
+      <i className={`mobile-race-tire-shape race-tire-temp-${tone}`} />
+    </div>
+  );
+}
+
+function MobileRaceGForce({ snapshot }: { snapshot: TelemetrySnapshot }) {
+  const accelX = snapshot.motion?.accelX ?? 0;
+  const accelZ = snapshot.motion?.accelZ ?? 0;
+  const lateralG = -accelX / METERS_PER_SECOND_SQUARED_PER_G;
+  const longitudinalG = accelZ / METERS_PER_SECOND_SQUARED_PER_G;
+  const totalG = Math.hypot(lateralG, longitudinalG);
+  const markerX = 150 + clamp(lateralG / DISPLAY_MAX_G, -1, 1) * 108;
+  const markerY = 150 + clamp(longitudinalG / DISPLAY_MAX_G, -1, 1) * 108;
+
+  return (
+    <div className="mobile-race-gforce">
+      <svg viewBox="0 0 300 300" role="img" aria-label="G-force load transfer">
+        <circle className="race-g-ring race-g-ring-outer" cx="150" cy="150" r="124" />
+        <circle className="race-g-ring" cx="150" cy="150" r="93" />
+        <circle className="race-g-ring" cx="150" cy="150" r="62" />
+        <circle className="race-g-ring" cx="150" cy="150" r="31" />
+        <line className="race-g-axis" x1="26" x2="274" y1="150" y2="150" />
+        <line className="race-g-axis" x1="150" x2="150" y1="26" y2="274" />
+        <circle className="race-g-dot" cx={markerX} cy={markerY} r="10" />
+      </svg>
+      <div className="mobile-race-gforce-readouts">
+        <MobileRaceStat label="Total" unit="G" value={formatNumber(totalG, 2)} />
+        <MobileRaceStat label="Lat" unit="G" value={formatSignedNumber(lateralG, 2)} />
+        <MobileRaceStat label="Long" unit="G" value={formatSignedNumber(longitudinalG, 2)} />
+      </div>
+    </div>
+  );
+}
+
+function MobileRaceDashboard({
+  snapshot,
+  connectionStatus,
+  renderHz,
+  clientMetrics
+}: RaceDashboardProps) {
+  const rpmRatio = getRpmRatio(snapshot);
+
+  if (!snapshot) {
+    return (
+      <WaitingDashboard
+        clientMetrics={clientMetrics}
+        connectionStatus={connectionStatus}
+        renderHz={renderHz}
+      />
+    );
+  }
+
+  const race = snapshot.race;
+  const showRaceInfo = shouldShowRaceInfo(snapshot);
+  const lapDelta =
+    showRaceInfo && race?.currentLapSeconds != null && race.bestLapSeconds != null
+      ? race.currentLapSeconds - race.bestLapSeconds
+      : undefined;
+
+  return (
+    <section className={`race-dashboard mobile-race-dashboard ${snapshot.connected ? "race-live" : "race-stale"}`}>
+      <header className="mobile-race-topbar">
+        <div className="mobile-race-title">
+          <span>FH6</span>
+          <strong>LANDSCAPE RACE</strong>
+        </div>
+        <div className="mobile-race-status">
+          <MobileRaceStat
+            label="Link"
+            tone={connectionStatus === "connected" && snapshot.connected ? "green" : "red"}
+            value={formatConnection(connectionStatus, snapshot)}
+          />
+          <MobileRaceStat label="RX" unit="Hz" tone="cyan" value={formatHz(clientMetrics.estimatedMessageHz)} />
+          <MobileRaceStat label="Age" unit="ms" tone="yellow" value={formatMilliseconds(clientMetrics.renderSnapshotAgeMs)} />
+        </div>
+      </header>
+      <ShiftLights rpmRatio={rpmRatio} />
+      <div className="mobile-race-layout">
+        <aside className="mobile-race-left">
+          {showRaceInfo ? (
+            <section className="mobile-race-panel">
+              <h2>Race</h2>
+              <div className="mobile-race-grid">
+                <MobileRaceStat label="Pos" tone="yellow" value={formatInteger(validRacePosition(race?.position))} />
+                <MobileRaceStat label="Lap" tone="cyan" value={formatInteger(validLapNumber(race?.lapNumber))} />
+                <MobileRaceStat label="Current" value={formatDuration(validRaceSeconds(race?.currentLapSeconds))} />
+                <MobileRaceStat label="Delta" tone={lapDelta != null && lapDelta <= 0 ? "green" : "red"} value={formatSignedDelta(lapDelta)} />
+              </div>
+            </section>
+          ) : (
+            <section className="mobile-race-panel">
+              <h2>Tires</h2>
+              <div className="mobile-race-tires">
+                <MobileRaceTire label="FL" value={snapshot.tires?.frontLeftTemp} />
+                <MobileRaceTire label="FR" value={snapshot.tires?.frontRightTemp} />
+                <MobileRaceTire label="RL" value={snapshot.tires?.rearLeftTemp} />
+                <MobileRaceTire label="RR" value={snapshot.tires?.rearRightTemp} />
+              </div>
+            </section>
+          )}
+          <section className="mobile-race-panel mobile-race-input-panel">
+            <h2>Inputs</h2>
+            <InputBar label="Thr" tone="green" value={snapshot.input.throttle} />
+            <InputBar label="Brk" tone="red" value={snapshot.input.brake} />
+            <SteerBar value={snapshot.input.steer} />
+          </section>
+        </aside>
+
+        <section className="mobile-race-center">
+          <div className="mobile-race-gear">
+            <span>Gear</span>
+            <strong>{gearLabel(snapshot.vehicle.gear)}</strong>
+          </div>
+          <div className="mobile-race-speed">
+            <span>Speed</span>
+            <strong>{formatSpeedKmh(snapshot.vehicle.speedKmh)}</strong>
+            <em>km/h</em>
+          </div>
+          <div className="mobile-race-rpm">
+            <span>RPM</span>
+            <strong>{formatInteger(snapshot.vehicle.rpm)}</strong>
+          </div>
+        </section>
+
+        <aside className="mobile-race-right">
+          <section className="mobile-race-panel mobile-race-g-panel">
+            <h2>G-Force</h2>
+            <MobileRaceGForce snapshot={snapshot} />
+          </section>
+          <section className="mobile-race-panel mobile-race-power">
+            <MobileRaceStat label="Power" unit="kW" tone="yellow" value={formatInteger(snapshot.vehicle.powerKw)} />
+            <MobileRaceStat label="Torque" unit="Nm" tone="red" value={formatInteger(snapshot.vehicle.torqueNm)} />
+            <MobileRaceStat label="Boost" tone="cyan" value={formatNumber(snapshot.vehicle.boost, 2)} />
+          </section>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
 function DashboardApp() {
   const { snapshot, clientMetrics, connectionStatus, renderHz } = useTelemetry();
   const layout = selectedDashboardLayout();
@@ -902,10 +1081,23 @@ function DashboardApp() {
   return (
     <main
       className={`dashboard-stage race-stage ${
-        layout === "time-attack" ? "time-attack-stage" : layout === "engineer" ? "engineer-stage" : ""
+        layout === "time-attack"
+          ? "time-attack-stage"
+          : layout === "engineer"
+            ? "engineer-stage"
+            : layout === "mobile-race"
+              ? "mobile-race-stage"
+              : ""
       }`}
     >
-      {layout === "engineer" ? (
+      {layout === "mobile-race" ? (
+        <MobileRaceDashboard
+          connectionStatus={connectionStatus}
+          clientMetrics={clientMetrics}
+          renderHz={renderHz}
+          snapshot={snapshot}
+        />
+      ) : layout === "engineer" ? (
         <TelemetryEngineerDashboard
           connectionStatus={connectionStatus}
           clientMetrics={clientMetrics}
