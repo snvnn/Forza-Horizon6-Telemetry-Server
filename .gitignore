@@ -7,3 +7,5 @@ config.json
 git-meta/
 release/
 *.log
+gforce-*.png
+race-dashboard-*.png

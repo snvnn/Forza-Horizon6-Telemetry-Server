@@ -1,6 +1,11 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    net::{SocketAddr, UdpSocket as StdUdpSocket},
+    sync::Arc,
+    time::Duration,
+};
 
 use serde::Serialize;
+use socket2::{Domain, Protocol, Socket, Type};
 use tokio::{
     net::UdpSocket,
     sync::{watch, Mutex, RwLock},
@@ -34,6 +39,7 @@ struct RuntimeInner {
     mock_handle: Option<JoinHandle<()>>,
     heartbeat_handle: Option<JoinHandle<()>>,
     udp_listening_address: Option<String>,
+    udp_receive_buffer_bytes: Option<usize>,
     mock_telemetry: bool,
 }
 
@@ -42,6 +48,7 @@ struct RuntimeInner {
 pub struct TelemetryRuntimeStatus {
     pub telemetry_running: bool,
     pub udp_listening_address: Option<String>,
+    pub udp_receive_buffer_bytes: Option<usize>,
     pub mock_telemetry: bool,
 }
 
@@ -74,9 +81,8 @@ impl TelemetryRuntimeManager {
 
         // UDP 수신기는 텔레메트리 런타임에 속한다. Settings 화면은 계속 살아 있고,
         // Start/Stop/Restart는 이 소켓과 관련 작업만 제어한다.
-        let socket = UdpSocket::bind(udp_addr)
-            .await
-            .map_err(|error| format!("Failed to bind UDP {udp_addr}: {error}"))?;
+        let (socket, udp_receive_buffer_bytes) =
+            bind_udp_socket(udp_addr, config.udp_receive_buffer_bytes)?;
         let local_addr = socket
             .local_addr()
             .map_err(|error| format!("Failed to read UDP local address: {error}"))?;
@@ -118,10 +124,12 @@ impl TelemetryRuntimeManager {
         inner.mock_handle = mock_handle;
         inner.heartbeat_handle = Some(heartbeat_handle);
         inner.udp_listening_address = Some(local_addr.to_string());
+        inner.udp_receive_buffer_bytes = Some(udp_receive_buffer_bytes);
         inner.mock_telemetry = config.mock_telemetry;
 
         tracing::info!(
             udp = %local_addr,
+            udp_receive_buffer_bytes,
             mock = config.mock_telemetry,
             "telemetry runtime started"
         );
@@ -152,6 +160,7 @@ impl TelemetryRuntimeManager {
         }
 
         inner.udp_listening_address = None;
+        inner.udp_receive_buffer_bytes = None;
         inner.mock_telemetry = false;
         if let Some(snapshot) = self.store.mark_disconnected().await {
             self.broadcaster.request_broadcast(snapshot);
@@ -180,9 +189,42 @@ impl RuntimeInner {
         TelemetryRuntimeStatus {
             telemetry_running: self.is_running(),
             udp_listening_address: self.udp_listening_address.clone(),
+            udp_receive_buffer_bytes: self.udp_receive_buffer_bytes,
             mock_telemetry: self.mock_telemetry,
         }
     }
+}
+
+fn bind_udp_socket(
+    udp_addr: SocketAddr,
+    receive_buffer_bytes: usize,
+) -> Result<(UdpSocket, usize), String> {
+    let domain = if udp_addr.is_ipv4() {
+        Domain::IPV4
+    } else {
+        Domain::IPV6
+    };
+    let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))
+        .map_err(|error| format!("Failed to create UDP socket: {error}"))?;
+
+    // A larger OS receive buffer gives the runtime room to absorb short CPU,
+    // scheduler, or GC-like stalls without dropping Forza UDP packets.
+    socket
+        .set_recv_buffer_size(receive_buffer_bytes)
+        .map_err(|error| format!("Failed to set UDP receive buffer: {error}"))?;
+    socket
+        .bind(&udp_addr.into())
+        .map_err(|error| format!("Failed to bind UDP {udp_addr}: {error}"))?;
+
+    let actual_receive_buffer = socket.recv_buffer_size().unwrap_or(receive_buffer_bytes);
+    let std_socket: StdUdpSocket = socket.into();
+    std_socket
+        .set_nonblocking(true)
+        .map_err(|error| format!("Failed to set UDP socket nonblocking: {error}"))?;
+    let socket = UdpSocket::from_std(std_socket)
+        .map_err(|error| format!("Failed to create Tokio UDP socket: {error}"))?;
+
+    Ok((socket, actual_receive_buffer))
 }
 
 async fn run_mock_telemetry(

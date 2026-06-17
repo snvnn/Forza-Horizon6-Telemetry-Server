@@ -35,6 +35,13 @@ function validateConfig(config: ServerConfig, supportedAdapters: string[]): stri
   if (config.udpPort === config.httpPort) {
     errors.push("UDP Port and HTTP Port must be different.");
   }
+  if (
+    !Number.isInteger(config.udpReceiveBufferBytes) ||
+    config.udpReceiveBufferBytes < 8192 ||
+    config.udpReceiveBufferBytes > 67108864
+  ) {
+    errors.push("UDP Receive Buffer must be between 8 KiB and 64 MiB.");
+  }
   if (!Number.isFinite(config.broadcastHz) || config.broadcastHz < 1 || config.broadcastHz > 120) {
     errors.push("Broadcast Hz must be between 1 and 120.");
   }
@@ -56,6 +63,52 @@ function formatTime(timestamp: number | null | undefined): string {
     return "No packet";
   }
   return new Date(timestamp).toLocaleTimeString();
+}
+
+function formatOptionalNumber(value: number | null | undefined, fractionDigits = 1): string {
+  if (value == null || !Number.isFinite(value)) {
+    return "--";
+  }
+  return value.toFixed(fractionDigits);
+}
+
+function formatBytes(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) {
+    return "--";
+  }
+  if (value >= 1024 * 1024) {
+    return `${(value / 1024 / 1024).toFixed(1)} MiB`;
+  }
+  return `${Math.round(value / 1024)} KiB`;
+}
+
+function formatGapHistogram(status: StatusResponse | null): string {
+  const histogram = status?.packetGapHistogram;
+  if (!histogram) {
+    return "--";
+  }
+
+  return [
+    `<=8:${histogram.le8Ms}`,
+    `<=16:${histogram.le16Ms}`,
+    `<=33:${histogram.le33Ms}`,
+    `<=50:${histogram.le50Ms}`,
+    `<=100:${histogram.le100Ms}`,
+    `<=250:${histogram.le250Ms}`,
+    `>250:${histogram.gt250Ms}`
+  ].join(" ");
+}
+
+function formatRecentPacketGaps(status: StatusResponse | null): string {
+  const gaps = status?.recentPacketGaps;
+  if (!gaps || gaps.length === 0) {
+    return "None";
+  }
+
+  return gaps
+    .slice(-4)
+    .map((gap) => `${gap.gapMs}ms @ ${formatTime(gap.at)}`)
+    .join(" | ");
 }
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -105,8 +158,30 @@ function StatusGrid({ status }: { status: StatusResponse | null }) {
     ["Game connected", status?.gameConnected ? "Yes" : "No"],
     ["WebSocket clients", String(status?.websocketClients ?? 0)],
     ["Broadcast", `${status?.broadcastHz ?? "--"} Hz`],
+    ["Broadcast actual", `${formatOptionalNumber(status?.broadcastStats?.estimatedBroadcastHz, 1)} Hz`],
+    ["Broadcast requests", String(status?.broadcastStats?.broadcastRequestCount ?? 0)],
+    ["Broadcast frames", String(status?.broadcastStats?.broadcastCount ?? 0)],
+    ["Coalesced requests", String(status?.broadcastStats?.coalescedBroadcastRequests ?? 0)],
+    [
+      "Snapshot age at send",
+      status?.broadcastStats?.lastSnapshotAgeMsAtBroadcast == null
+        ? "--"
+        : `${status.broadcastStats.lastSnapshotAgeMsAtBroadcast} ms`
+    ],
+    ["Snapshot age max", `${status?.broadcastStats?.maxSnapshotAgeMsAtBroadcast ?? 0} ms`],
+    ["Payload", formatBytes(status?.broadcastStats?.lastPayloadBytes)],
+    ["WS send max", `${formatOptionalNumber(status?.broadcastStats?.maxWebsocketSendMs, 1)} ms`],
+    ["WS send timeouts", String(status?.broadcastStats?.websocketSendTimeouts ?? 0)],
+    ["WS send errors", String(status?.broadcastStats?.websocketSendErrors ?? 0)],
     ["Packets", String(status?.receivedPacketCount ?? 0)],
     ["Last packet", formatTime(status?.lastPacketAt)],
+    ["Last packet age", status?.lastPacketAgeMs == null ? "--" : `${status.lastPacketAgeMs} ms`],
+    ["Estimated UDP Hz", formatOptionalNumber(status?.estimatedPacketHz, 1)],
+    ["UDP gap max", `${status?.maxPacketGapMs ?? 0} ms`],
+    ["UDP gap events", String(status?.packetGapCount ?? 0)],
+    ["UDP gap distribution", formatGapHistogram(status)],
+    ["Recent UDP gaps", formatRecentPacketGaps(status)],
+    ["UDP receive buffer", formatBytes(status?.udpReceiveBufferBytes)],
     ["Mock mode", status?.mockTelemetry ? "On" : "Off"]
   ];
 
@@ -205,7 +280,7 @@ export function SettingsPage() {
 
       setForm(response.config);
       const restartText = response.requiresTelemetryRestart
-        ? " Restart telemetry to apply UDP, mock, debug, or adapter changes."
+        ? " Restart telemetry to apply UDP, receive buffer, mock, debug, or adapter changes."
         : "";
       const appRestartText = response.requiresAppRestart
         ? " Restart the app process to apply HTTP host or port changes."
@@ -311,6 +386,18 @@ export function SettingsPage() {
                   max={65535}
                   value={form.udpPort}
                   onChange={(event) => updateField("udpPort", Number(event.target.value))}
+                />
+              </label>
+
+              <label>
+                <span>UDP Receive Buffer bytes</span>
+                <input
+                  type="number"
+                  min={8192}
+                  max={67108864}
+                  step={8192}
+                  value={form.udpReceiveBufferBytes}
+                  onChange={(event) => updateField("udpReceiveBufferBytes", Number(event.target.value))}
                 />
               </label>
 

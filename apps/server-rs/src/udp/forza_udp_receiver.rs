@@ -1,4 +1,9 @@
-use tokio::{net::UdpSocket, select, sync::watch};
+use tokio::{
+    net::UdpSocket,
+    select,
+    sync::watch,
+    time::{Duration, Instant},
+};
 
 use crate::{
     parser::forza_packet_parser::ForzaPacketParser,
@@ -7,6 +12,8 @@ use crate::{
         telemetry_types::TelemetryPacketInfo,
     },
 };
+
+const PACKET_INFO_SAMPLE_INTERVAL: Duration = Duration::from_millis(250);
 
 pub async fn run_forza_udp_receiver(
     socket: UdpSocket,
@@ -21,6 +28,7 @@ pub async fn run_forza_udp_receiver(
     );
 
     let mut packet = vec![0_u8; 2048];
+    let mut next_packet_info_sample_at = Instant::now();
 
     loop {
         // UDP receive stays on the hot path: parse immediately, overwrite the
@@ -38,10 +46,24 @@ pub async fn run_forza_udp_receiver(
 
         let (length, remote) = receive_result?;
         let packet_slice = &packet[..length];
+        let capture_packet_info = Instant::now() >= next_packet_info_sample_at;
 
-        match parser.parse(packet_slice) {
+        let parse_result = if capture_packet_info {
+            parser
+                .parse(packet_slice)
+                .map(|(snapshot, packet_info)| (snapshot, Some(packet_info)))
+        } else {
+            parser
+                .parse_snapshot(packet_slice)
+                .map(|snapshot| (snapshot, None))
+        };
+
+        match parse_result {
             Ok((snapshot, packet_info)) => {
-                let snapshot = store.update(snapshot, Some(packet_info)).await;
+                if capture_packet_info {
+                    next_packet_info_sample_at = Instant::now() + PACKET_INFO_SAMPLE_INTERVAL;
+                }
+                let snapshot = store.update(snapshot, packet_info).await;
                 broadcaster.request_broadcast(snapshot);
             }
             Err(error) => {

@@ -17,6 +17,7 @@
     "package:windows": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -ExecutionPolicy Bypass -File scripts\\package-windows.ps1",
     "typecheck": "cargo check -p forza-telemetry-server && npm run typecheck -w @forza-telemetry/dashboard",
     "validate:env": "scripts\\validate-env.cmd",
+    "diagnose:latency": "node scripts/diagnose-latency.mjs",
     "standalone": "scripts\\standalone.cmd",
     "smoke:standalone": "scripts\\smoke-standalone.cmd",
     "start": "target\\release\\sim-telemetry-server.exe",

@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub http_port: u16,
     pub udp_host: String,
     pub udp_port: u16,
+    pub udp_receive_buffer_bytes: usize,
     pub broadcast_hz: f64,
     pub broadcast_interval_ms: f64,
     pub connection_timeout_ms: u64,
@@ -33,6 +34,7 @@ pub struct PublicConfig {
     pub http_port: u16,
     pub udp_host: String,
     pub udp_port: u16,
+    pub udp_receive_buffer_bytes: usize,
     pub broadcast_hz: f64,
     pub connection_timeout_ms: u64,
     pub mock_telemetry: bool,
@@ -47,6 +49,7 @@ struct PartialConfig {
     http_port: Option<u16>,
     udp_host: Option<String>,
     udp_port: Option<u16>,
+    udp_receive_buffer_bytes: Option<usize>,
     broadcast_hz: Option<f64>,
     connection_timeout_ms: Option<u64>,
     mock_telemetry: Option<bool>,
@@ -67,6 +70,7 @@ impl AppConfig {
             http_port: public.http_port,
             udp_host: public.udp_host,
             udp_port: public.udp_port,
+            udp_receive_buffer_bytes: public.udp_receive_buffer_bytes,
             broadcast_hz: public.broadcast_hz,
             connection_timeout_ms: public.connection_timeout_ms,
             mock_telemetry: public.mock_telemetry,
@@ -84,6 +88,7 @@ impl AppConfig {
             http_port: self.http_port,
             udp_host: self.udp_host.clone(),
             udp_port: self.udp_port,
+            udp_receive_buffer_bytes: self.udp_receive_buffer_bytes,
             broadcast_hz: self.broadcast_hz,
             connection_timeout_ms: self.connection_timeout_ms,
             mock_telemetry: self.mock_telemetry,
@@ -168,6 +173,10 @@ pub fn validate_public_config(config: &PublicConfig) -> Result<(), Vec<String>> 
         errors.push("udpPort must be between 1 and 65535".to_string());
     }
 
+    if !(8 * 1024..=64 * 1024 * 1024).contains(&config.udp_receive_buffer_bytes) {
+        errors.push("udpReceiveBufferBytes must be between 8192 and 67108864".to_string());
+    }
+
     if config.http_port == config.udp_port {
         errors.push("HTTP port and UDP port must be different".to_string());
     }
@@ -221,6 +230,7 @@ fn default_public_config() -> PublicConfig {
         http_port: 3000,
         udp_host: "0.0.0.0".to_string(),
         udp_port: 5400,
+        udp_receive_buffer_bytes: 1_048_576,
         broadcast_hz: 60.0,
         connection_timeout_ms: 2000,
         mock_telemetry: false,
@@ -248,6 +258,9 @@ fn apply_env_config(config: &mut PublicConfig) {
     }
     if let Some(value) = parse_port(env::var("UDP_PORT").ok().as_deref()) {
         config.udp_port = value;
+    }
+    if let Some(value) = parse_usize(env::var("UDP_RECEIVE_BUFFER_BYTES").ok().as_deref()) {
+        config.udp_receive_buffer_bytes = value;
     }
     if let Some(value) = parse_hz(env::var("TELEMETRY_BROADCAST_HZ").ok().as_deref()) {
         config.broadcast_hz = value;
@@ -280,6 +293,9 @@ fn apply_partial_config(config: &mut PublicConfig, partial: PartialConfig) {
     }
     if let Some(value) = partial.udp_port {
         config.udp_port = value;
+    }
+    if let Some(value) = partial.udp_receive_buffer_bytes {
+        config.udp_receive_buffer_bytes = value;
     }
     if let Some(value) = partial.broadcast_hz {
         config.broadcast_hz = value;
@@ -418,6 +434,10 @@ fn parse_hz(value: Option<&str>) -> Option<f64> {
     value
         .and_then(|raw| raw.trim().parse::<f64>().ok())
         .filter(|hz| hz.is_finite() && *hz >= 1.0 && *hz <= 120.0)
+}
+
+fn parse_usize(value: Option<&str>) -> Option<usize> {
+    value.and_then(|raw| raw.trim().parse::<usize>().ok())
 }
 
 fn parse_positive_u64(value: Option<&str>, fallback: u64) -> u64 {

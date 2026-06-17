@@ -1,14 +1,35 @@
 import type {
   TelemetryConnectionStatus,
+  TelemetryClientMetrics,
   TelemetryMessage,
   TelemetrySnapshot
 } from "./telemetryTypes";
 
 type StatusListener = (status: TelemetryConnectionStatus) => void;
 
+const MESSAGE_INTERVAL_EMA_ALPHA = 0.1;
+
+function createInitialMetrics(): TelemetryClientMetrics {
+  return {
+    receivedMessages: 0,
+    parseErrors: 0,
+    lastReceiveAt: null,
+    lastReceivePerformanceMs: null,
+    lastSnapshotTimestamp: null,
+    snapshotAgeMs: null,
+    messageIntervalEmaMs: null,
+    estimatedMessageHz: null,
+    maxMessageGapMs: 0,
+    renderFrames: 0,
+    receiveToRenderMs: null,
+    renderSnapshotAgeMs: null
+  };
+}
+
 export class TelemetryClient {
   private socket: WebSocket | null = null;
   private latest: TelemetrySnapshot | null = null;
+  private metrics: TelemetryClientMetrics = createInitialMetrics();
   private status: TelemetryConnectionStatus = "connecting";
   private reconnectTimer: number | null = null;
   private shouldReconnect = false;
@@ -37,6 +58,14 @@ export class TelemetryClient {
 
   getLatest(): TelemetrySnapshot | null {
     return this.latest;
+  }
+
+  getMetrics(): TelemetryClientMetrics {
+    return { ...this.metrics };
+  }
+
+  setLatest(snapshot: TelemetrySnapshot): void {
+    this.latest = snapshot;
   }
 
   getStatus(): TelemetryConnectionStatus {
@@ -77,8 +106,10 @@ export class TelemetryClient {
           // WebSocket messages only update the latest snapshot reference. React
           // state is updated by useTelemetry at VITE_RENDER_HZ, not per packet.
           this.latest = message.snapshot;
+          this.recordMessage(message.snapshot);
         }
       } catch (error) {
+        this.metrics.parseErrors += 1;
         console.error("[telemetry] Failed to parse WebSocket message", error);
       }
     });
@@ -126,5 +157,29 @@ export class TelemetryClient {
     for (const listener of this.listeners) {
       listener(status);
     }
+  }
+
+  private recordMessage(snapshot: TelemetrySnapshot): void {
+    const receiveAt = Date.now();
+    const receivePerformanceMs = performance.now();
+    const previousReceivePerformanceMs = this.metrics.lastReceivePerformanceMs;
+
+    if (previousReceivePerformanceMs != null) {
+      const gapMs = receivePerformanceMs - previousReceivePerformanceMs;
+      this.metrics.maxMessageGapMs = Math.max(this.metrics.maxMessageGapMs, gapMs);
+      this.metrics.messageIntervalEmaMs =
+        this.metrics.messageIntervalEmaMs == null
+          ? gapMs
+          : this.metrics.messageIntervalEmaMs * (1 - MESSAGE_INTERVAL_EMA_ALPHA) +
+            gapMs * MESSAGE_INTERVAL_EMA_ALPHA;
+      this.metrics.estimatedMessageHz =
+        this.metrics.messageIntervalEmaMs > 0 ? 1000 / this.metrics.messageIntervalEmaMs : null;
+    }
+
+    this.metrics.receivedMessages += 1;
+    this.metrics.lastReceiveAt = receiveAt;
+    this.metrics.lastReceivePerformanceMs = receivePerformanceMs;
+    this.metrics.lastSnapshotTimestamp = snapshot.timestamp;
+    this.metrics.snapshotAgeMs = receiveAt - snapshot.timestamp;
   }
 }

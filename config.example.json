@@ -4,6 +4,7 @@
   "httpPort": 3000,
   "udpHost": "0.0.0.0",
   "udpPort": 5400,
+  "udpReceiveBufferBytes": 1048576,
   "broadcastHz": 60,
   "connectionTimeoutMs": 2000,
   "mockTelemetry": false,

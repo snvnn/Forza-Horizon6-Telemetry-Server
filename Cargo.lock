@@ -166,10 +166,12 @@ dependencies = [
  "axum",
  "serde",
  "serde_json",
+ "socket2",
  "tokio",
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "windows-sys",
 ]
 
 [[package]]

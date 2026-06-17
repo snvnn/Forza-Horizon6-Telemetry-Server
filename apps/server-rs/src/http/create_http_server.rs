@@ -114,10 +114,18 @@ async fn api_status(State(state): State<AppState>) -> impl IntoResponse {
     let active_http_config = config_with_active_http_port(&config, &state.http_listening_address);
     let runtime_status = state.runtime.status().await;
     let last_packet_at = state.store.last_packet_at().await;
+    let last_packet_info_at = state.store.last_packet_info_at().await;
+    let timing_stats = state.store.timing_stats().await;
+    let broadcast_stats = state.broadcaster.stats();
     let last_packet_at_json = if last_packet_at == 0 {
         Value::Null
     } else {
         json!(last_packet_at)
+    };
+    let last_packet_info_at_json = if last_packet_info_at == 0 {
+        Value::Null
+    } else {
+        json!(last_packet_info_at)
     };
 
     Json(json!({
@@ -128,13 +136,24 @@ async fn api_status(State(state): State<AppState>) -> impl IntoResponse {
         "gameConnected": state.store.is_connected().await,
         "hasTelemetry": state.store.has_telemetry().await,
         "lastPacketAt": last_packet_at_json,
+        "lastPacketInfoAt": last_packet_info_at_json,
+        "lastPacketAgeMs": timing_stats.last_packet_age_ms,
+        "packetIntervalEmaMs": timing_stats.packet_interval_ema_ms,
+        "estimatedPacketHz": timing_stats.estimated_packet_hz,
+        "maxPacketGapMs": timing_stats.max_packet_gap_ms,
+        "packetGapCount": timing_stats.packet_gap_count,
+        "packetGapWarningMs": timing_stats.packet_gap_warning_ms,
+        "packetGapHistogram": timing_stats.packet_gap_histogram,
+        "recentPacketGaps": timing_stats.recent_packet_gaps,
         "receivedPacketCount": state.store.sequence().await,
         "websocketClients": state.broadcaster.client_count(),
         "udpListeningAddress": runtime_status.udp_listening_address,
+        "udpReceiveBufferBytes": runtime_status.udp_receive_buffer_bytes.unwrap_or(config.udp_receive_buffer_bytes),
         "httpListeningAddress": state.http_listening_address,
         "gameAdapter": config.game_adapter,
         "broadcastHz": config.broadcast_hz,
         "broadcastIntervalMs": config.broadcast_interval_ms,
+        "broadcastStats": broadcast_stats,
         "mockTelemetry": runtime_status.mock_telemetry,
         "connectionTimeoutMs": config.connection_timeout_ms,
         "heartbeatMs": config.heartbeat_ms,
@@ -188,6 +207,7 @@ async fn api_put_config(
     let requires_telemetry_restart = old_public.game_adapter != next_public.game_adapter
         || old_public.udp_host != next_public.udp_host
         || old_public.udp_port != next_public.udp_port
+        || old_public.udp_receive_buffer_bytes != next_public.udp_receive_buffer_bytes
         || old_public.mock_telemetry != next_public.mock_telemetry
         || old_public.debug_packet != next_public.debug_packet;
     let requires_app_restart = old_public.http_host != next_public.http_host
@@ -306,6 +326,10 @@ fn print_startup_info(config: &AppConfig, http_listening_address: &str) {
     println!();
     println!("UDP:");
     println!("  Listening on {}:{}", config.udp_host, config.udp_port);
+    println!(
+        "  Receive buffer: {} bytes",
+        config.udp_receive_buffer_bytes
+    );
     println!();
     println!("HTTP:");
     println!("  Listening on {http_listening_address}");

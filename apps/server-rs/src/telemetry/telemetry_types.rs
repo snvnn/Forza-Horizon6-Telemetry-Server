@@ -16,6 +16,8 @@ pub struct TelemetrySnapshot {
     pub tires: Option<TireTelemetry>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub motion: Option<MotionTelemetry>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub race: Option<RaceTelemetry>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -64,6 +66,28 @@ pub struct MotionTelemetry {
     pub accel_y: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accel_z: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RaceTelemetry {
+    pub active: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub best_lap_seconds: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_lap_seconds: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_lap_seconds: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_race_time_seconds: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lap_number: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fuel: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_traveled_meters: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
