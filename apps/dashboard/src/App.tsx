@@ -23,7 +23,7 @@ type RaceDashboardProps = {
   clientMetrics: TelemetryClientMetrics;
 };
 
-type DashboardLayout = "race" | "time-attack" | "engineer" | "mobile-race" | "minimal";
+type DashboardLayout = "race" | "time-attack" | "engineer" | "mobile-race" | "minimal" | "gforce";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -290,6 +290,10 @@ function selectedDashboardLayout(): DashboardLayout {
 
   if (layout === "minimal" || layout === "minimal-hud" || layout === "hud") {
     return "minimal";
+  }
+
+  if (layout === "gforce" || layout === "g-force" || layout === "gforce-focus") {
+    return "gforce";
   }
 
   return "race";
@@ -1179,6 +1183,119 @@ function MinimalHudDashboard({
   );
 }
 
+function GForceFocusStat({
+  label,
+  value,
+  unit,
+  tone
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  tone?: "green" | "red" | "yellow" | "cyan";
+}) {
+  return (
+    <div className={`gfocus-stat ${tone ? `gfocus-stat-${tone}` : ""}`}>
+      <span>{label}</span>
+      <strong>
+        {value}
+        {unit ? <em>{unit}</em> : null}
+      </strong>
+    </div>
+  );
+}
+
+function GForceFocusDashboard({
+  snapshot,
+  connectionStatus,
+  renderHz,
+  clientMetrics
+}: RaceDashboardProps) {
+  const rpmRatio = getRpmRatio(snapshot);
+
+  if (!snapshot) {
+    return (
+      <WaitingDashboard
+        clientMetrics={clientMetrics}
+        connectionStatus={connectionStatus}
+        renderHz={renderHz}
+      />
+    );
+  }
+
+  const accelX = snapshot.motion?.accelX ?? 0;
+  const accelY = snapshot.motion?.accelY ?? 0;
+  const accelZ = snapshot.motion?.accelZ ?? 0;
+  const lateralG = -accelX / METERS_PER_SECOND_SQUARED_PER_G;
+  const longitudinalG = accelZ / METERS_PER_SECOND_SQUARED_PER_G;
+  const totalG = Math.hypot(lateralG, longitudinalG);
+  const markerX = 150 + clamp(lateralG / DISPLAY_MAX_G, -1, 1) * 108;
+  const markerY = 150 + clamp(longitudinalG / DISPLAY_MAX_G, -1, 1) * 108;
+  const tires = [
+    snapshot.tires?.frontLeftTemp,
+    snapshot.tires?.frontRightTemp,
+    snapshot.tires?.rearLeftTemp,
+    snapshot.tires?.rearRightTemp
+  ];
+  const validTires = tires.filter((value): value is number => value != null && Number.isFinite(value));
+  const hottestTire = validTires.length > 0 ? Math.max(...validTires) : undefined;
+
+  return (
+    <section className={`race-dashboard gfocus-dashboard ${snapshot.connected ? "race-live" : "race-stale"}`}>
+      <header className="gfocus-topbar">
+        <div className="gfocus-title">
+          <span>FH6</span>
+          <strong>G-FORCE FOCUS</strong>
+        </div>
+        <div className="gfocus-status">
+          <GForceFocusStat
+            label="Link"
+            tone={connectionStatus === "connected" && snapshot.connected ? "green" : "red"}
+            value={formatConnection(connectionStatus, snapshot)}
+          />
+          <GForceFocusStat label="RX" unit="Hz" tone="cyan" value={formatHz(clientMetrics.estimatedMessageHz)} />
+          <GForceFocusStat label="Age" unit="ms" tone="yellow" value={formatMilliseconds(clientMetrics.renderSnapshotAgeMs)} />
+        </div>
+      </header>
+      <ShiftLights rpmRatio={rpmRatio} />
+      <main className="gfocus-layout">
+        <aside className="gfocus-rail gfocus-left">
+          <GForceFocusStat label="Speed" unit="km/h" tone="cyan" value={formatSpeedKmh(snapshot.vehicle.speedKmh)} />
+          <GForceFocusStat label="Gear" tone="yellow" value={gearLabel(snapshot.vehicle.gear)} />
+          <GForceFocusStat label="RPM" value={formatInteger(snapshot.vehicle.rpm)} />
+          <GForceFocusStat label="Throttle" tone="green" value={formatPercent(snapshot.input.throttle)} />
+          <GForceFocusStat label="Brake" tone="red" value={formatPercent(snapshot.input.brake)} />
+        </aside>
+
+        <section className="gfocus-meter-panel">
+          <svg className="gfocus-meter" viewBox="0 0 300 300" role="img" aria-label="G-force load transfer">
+            <circle className="gfocus-ring gfocus-ring-outer" cx="150" cy="150" r="124" />
+            <circle className="gfocus-ring" cx="150" cy="150" r="93" />
+            <circle className="gfocus-ring" cx="150" cy="150" r="62" />
+            <circle className="gfocus-ring" cx="150" cy="150" r="31" />
+            <line className="gfocus-axis" x1="26" x2="274" y1="150" y2="150" />
+            <line className="gfocus-axis" x1="150" x2="150" y1="26" y2="274" />
+            <circle className="gfocus-dot" cx={markerX} cy={markerY} r="10" />
+          </svg>
+          <div className="gfocus-primary-readout">
+            <span>Total Load</span>
+            <strong>{formatNumber(totalG, 2)}<em>G</em></strong>
+          </div>
+        </section>
+
+        <aside className="gfocus-rail gfocus-right">
+          <GForceFocusStat label="Lat G" unit="G" tone="cyan" value={formatSignedNumber(lateralG, 2)} />
+          <GForceFocusStat label="Long G" unit="G" tone="yellow" value={formatSignedNumber(longitudinalG, 2)} />
+          <GForceFocusStat label="Accel X" value={formatSignedNumber(accelX, 2)} />
+          <GForceFocusStat label="Accel Y" value={formatSignedNumber(accelY, 2)} />
+          <GForceFocusStat label="Accel Z" value={formatSignedNumber(accelZ, 2)} />
+          <GForceFocusStat label="Hot Tire" tone="green" value={formatTemperatureC(hottestTire)} />
+        </aside>
+      </main>
+    </section>
+  );
+}
+
 function DashboardApp() {
   const { snapshot, clientMetrics, connectionStatus, renderHz } = useTelemetry();
   const layout = selectedDashboardLayout();
@@ -1194,10 +1311,19 @@ function DashboardApp() {
               ? "mobile-race-stage"
               : layout === "minimal"
                 ? "minimal-stage"
-                : ""
+                : layout === "gforce"
+                  ? "gfocus-stage"
+                  : ""
       }`}
     >
-      {layout === "minimal" ? (
+      {layout === "gforce" ? (
+        <GForceFocusDashboard
+          connectionStatus={connectionStatus}
+          clientMetrics={clientMetrics}
+          renderHz={renderHz}
+          snapshot={snapshot}
+        />
+      ) : layout === "minimal" ? (
         <MinimalHudDashboard
           connectionStatus={connectionStatus}
           clientMetrics={clientMetrics}
