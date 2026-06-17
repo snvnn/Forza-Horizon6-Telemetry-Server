@@ -24,19 +24,22 @@ Forza Horizon 6 UDP
 - The store is latest-only. There is no database, file export, or history queue
   on the hot path.
 - WebSocket broadcast is capped by `TELEMETRY_BROADCAST_HZ`, default `60`.
-  When UDP arrives faster than the cap, old pending snapshots are intentionally
-  coalesced and only the newest snapshot is published.
+  `0` enables uncapped mode, which publishes on every UDP update request. Values
+  from `1` to `240` cap the publish rate in Hz. When UDP arrives faster than the
+  cap, old pending snapshots are intentionally coalesced and only the newest
+  snapshot is published.
 - Browser WebSocket messages update a latest ref only. React state is copied from
-  that ref at `VITE_RENDER_HZ`, so message receive rate and UI render rate remain
-  separate.
+  that ref at `dashboardRenderHz` from `/api/config` so message receive rate and
+  UI render rate remain separate. `VITE_RENDER_HZ` is only the build/env fallback.
 - `DEBUG_PACKET=false` uses a parser fast path that skips candidate maps and raw
   value capture for normal driving.
 - `/api/status.lastPacket` metadata is sampled every 250ms on successful packets.
   Parse errors still update status immediately.
-- WebSocket JSON is serialized once per broadcast frame, then shared by all
-  clients.
-- Slow WebSocket sends time out after 250ms. The browser reconnects and resumes
-  from the latest state.
+- JSON compatible mode serializes JSON once per broadcast frame, then shares the
+  frame by all clients. Binary low latency mode sends `/ws/telemetry.bin` with a
+  fixed 80-byte normalized frame and cheap binary payload clone per client.
+- Slow WebSocket sends time out after `websocketSendTimeoutMs`, default 50ms.
+  The browser reconnects and resumes from the latest state.
 - Windows requests a 1ms multimedia timer period while the server process runs.
 - UDP receive buffer defaults to 1 MiB and can be adjusted with
   `udpReceiveBufferBytes` / `UDP_RECEIVE_BUFFER_BYTES`.
@@ -66,6 +69,10 @@ Forza Horizon 6 UDP
   publish time.
 - `broadcastStats.websocketSendTimeouts`: clients that were too slow to send to.
 - `broadcastStats.maxWebsocketSendMs`: worst observed send duration.
+- `transportMode`: `json` uses `/ws/telemetry`; `binary` uses
+  `/ws/telemetry.bin`.
+- `dashboardRenderHz`: React render/copy cap used by the browser dashboard.
+- `websocketSendTimeoutMs`: configured per-frame send timeout for slow clients.
 
 Interpretation:
 
@@ -126,8 +133,9 @@ buckets, then prints recommendations.
 ## Operational Recommendations
 
 - Keep `DEBUG_PACKET=false` for normal driving.
-- If the dashboard device is weak, lower `VITE_RENDER_HZ=30` first.
-- If Wi-Fi or tablet browser load is weak, lower `TELEMETRY_BROADCAST_HZ=30`.
+- If the dashboard device is weak, lower Dashboard Render Hz in Settings first.
+- If Wi-Fi or tablet browser load is weak, lower Broadcast Hz or switch
+  Transport Mode to Binary low latency.
 - If `packetGapCount` increases or `maxPacketGapMs` often exceeds 50ms, raise
   `udpReceiveBufferBytes` to 2-4 MiB and retest.
 - If `estimatedBroadcastHz` stays below configured `broadcastHz`, inspect
@@ -137,8 +145,8 @@ buckets, then prints recommendations.
 
 ## Remaining Candidates
 
-- Optional binary WebSocket payload if JSON payload size or CPU becomes the next
-  measurable bottleneck.
+- Optional `/ws/raw` diagnostic stream if raw Forza packet passthrough is ever
+  needed for parser research.
 - App-level WebSocket RTT ping if tablet network latency needs to be measured
   independently from server-side snapshot age.
 - A repeatable local stress harness with synthetic UDP input and N WebSocket

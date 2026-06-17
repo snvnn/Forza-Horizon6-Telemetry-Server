@@ -21,8 +21,9 @@ use crate::{
         telemetry_broadcaster::TelemetryBroadcaster,
         telemetry_runtime::{TelemetryRuntimeManager, TelemetryRuntimeStatus},
         telemetry_store::TelemetryStore,
+        telemetry_types::now_millis,
     },
-    websocket::telemetry_websocket::telemetry_websocket,
+    websocket::telemetry_websocket::{telemetry_binary_websocket, telemetry_websocket},
 };
 
 #[derive(Clone)]
@@ -91,12 +92,14 @@ fn create_router(state: AppState) -> Router {
     let dashboard_dist = state.dashboard_dist_dir.clone();
     let router = Router::new()
         .route("/api/status", get(api_status))
+        .route("/api/time", get(api_time))
         .route("/api/telemetry", get(api_telemetry))
         .route("/api/config", get(api_config).put(api_put_config))
         .route("/api/runtime/start", post(api_runtime_start))
         .route("/api/runtime/stop", post(api_runtime_stop))
         .route("/api/runtime/restart", post(api_runtime_restart))
-        .route("/ws/telemetry", get(telemetry_websocket));
+        .route("/ws/telemetry", get(telemetry_websocket))
+        .route("/ws/telemetry.bin", get(telemetry_binary_websocket));
 
     if dashboard_dist.exists() {
         // Production dashboard serving uses exe-relative `static` first, then
@@ -153,12 +156,22 @@ async fn api_status(State(state): State<AppState>) -> impl IntoResponse {
         "gameAdapter": config.game_adapter,
         "broadcastHz": config.broadcast_hz,
         "broadcastIntervalMs": config.broadcast_interval_ms,
+        "transportMode": config.transport_mode,
+        "dashboardRenderHz": config.dashboard_render_hz,
+        "websocketSendTimeoutMs": config.websocket_send_timeout_ms,
         "broadcastStats": broadcast_stats,
         "mockTelemetry": runtime_status.mock_telemetry,
         "connectionTimeoutMs": config.connection_timeout_ms,
         "heartbeatMs": config.heartbeat_ms,
         "urls": dashboard_urls(&active_http_config),
         "lastPacket": state.store.last_packet_info().await
+    }))
+}
+
+async fn api_time() -> impl IntoResponse {
+    Json(json!({
+        "ok": true,
+        "serverTimeMs": now_millis()
     }))
 }
 
@@ -232,6 +245,9 @@ async fn api_put_config(
     // Broadcast Hz and timeout are safe to apply immediately. UDP bind changes
     // still require a telemetry runtime restart because they replace the socket.
     state.broadcaster.set_broadcast_hz(next_config.broadcast_hz);
+    state
+        .broadcaster
+        .set_websocket_send_timeout_ms(next_config.websocket_send_timeout_ms);
     state
         .store
         .set_connection_timeout_ms(next_config.connection_timeout_ms);
@@ -347,7 +363,20 @@ fn print_startup_info(config: &AppConfig, http_listening_address: &str) {
     }
     println!();
     println!("Broadcast:");
-    println!("  {} Hz", config.broadcast_hz);
+    if config.broadcast_hz == 0.0 {
+        println!("  uncapped");
+    } else {
+        println!("  {} Hz", config.broadcast_hz);
+    }
+    println!("  Transport: {}", config.transport_mode);
+    println!(
+        "  WebSocket send timeout: {} ms",
+        config.websocket_send_timeout_ms
+    );
+    println!(
+        "  Dashboard render target: {} Hz",
+        config.dashboard_render_hz
+    );
     println!();
     println!("Mock Telemetry:");
     println!("  {}", config.mock_telemetry);

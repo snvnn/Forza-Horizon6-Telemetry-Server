@@ -56,6 +56,8 @@ export type TelemetryClientMetrics = {
   renderFrames: number;
   receiveToRenderMs: number | null;
   renderSnapshotAgeMs: number | null;
+  serverClockOffsetMs: number | null;
+  serverClockRttMs: number | null;
 };
 
 export type TelemetryMessage = {

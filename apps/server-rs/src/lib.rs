@@ -1,6 +1,7 @@
 pub mod app;
 pub mod config;
 pub mod http;
+pub mod native_gui;
 pub mod parser;
 pub mod telemetry;
 pub mod udp;

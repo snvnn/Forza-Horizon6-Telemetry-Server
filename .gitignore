@@ -9,3 +9,4 @@ release/
 *.log
 gforce-*.png
 race-dashboard-*.png
+local-docs/

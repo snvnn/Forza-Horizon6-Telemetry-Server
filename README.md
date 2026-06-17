@@ -121,6 +121,9 @@ UDP_PORT=5400
 HTTP_PORT=3000
 HOST=0.0.0.0
 TELEMETRY_BROADCAST_HZ=60
+TRANSPORT_MODE=json
+DASHBOARD_RENDER_HZ=60
+WEBSOCKET_SEND_TIMEOUT_MS=50
 MOCK_TELEMETRY=false
 DEBUG_PACKET=false
 CONNECTION_TIMEOUT_MS=2000
@@ -128,15 +131,21 @@ CONNECTION_TIMEOUT_MS=2000
 VITE_RENDER_HZ=60
 ```
 
-`TELEMETRY_BROADCAST_HZ`는 서버가 WebSocket으로 보내는 최대 빈도입니다. 값이 없거나 숫자가 아니거나 1보다 작거나 120보다 크면 60Hz를 사용합니다.
+`TELEMETRY_BROADCAST_HZ`는 서버가 WebSocket으로 보내는 최대 빈도입니다. `0`이면 UDP 입력마다 가능한 한 즉시 송출하는 uncapped 모드이고, `1-240`은 Hz 상한입니다. 값이 없거나 숫자가 아니거나 범위를 벗어나면 60Hz를 사용합니다.
 
-`VITE_RENDER_HZ`는 React state update 빈도입니다. 브라우저는 WebSocket 메시지마다 `setState`를 호출하지 않고 최신값만 저장한 뒤, 이 값에 맞춰 화면에 반영합니다.
+`VITE_RENDER_HZ`는 React state update 빈도입니다. 브라우저는 WebSocket 메시지마다 `setState`를 호출하지 않고 최신값만 저장한 뒤, `1-240Hz` 범위에서 이 값에 맞춰 화면에 반영합니다.
+
+`TRANSPORT_MODE=json`은 기존 호환 모드이며 `/ws/telemetry`를 사용합니다. `TRANSPORT_MODE=binary`는 저지연 모드이며 `/ws/telemetry.bin`으로 80-byte normalized binary frame을 전송합니다. Binary v1은 speed/RPM/input/powertrain/tire/motion 같은 고속 주행 핵심 필드만 포함하고, race/lap 정보는 JSON 모드에 남아 있습니다.
+
+`DASHBOARD_RENDER_HZ`와 Settings 화면의 Dashboard Render Hz는 실행 중인 브라우저 렌더링 cap입니다. `VITE_RENDER_HZ`는 개발/빌드 fallback으로만 사용됩니다.
+
+`WEBSOCKET_SEND_TIMEOUT_MS`는 느린 클라이언트 송신을 끊는 시간입니다. 기본값은 50ms이고 Settings 화면에서 10-1000ms 범위로 조절할 수 있습니다.
 
 성능 문제가 있으면 다음처럼 낮춥니다.
 
 ```env
 TELEMETRY_BROADCAST_HZ=30
-VITE_RENDER_HZ=30
+DASHBOARD_RENDER_HZ=30
 ```
 
 기준 간격:
@@ -144,6 +153,7 @@ VITE_RENDER_HZ=30
 - 60Hz: 약 16.67ms
 - 30Hz: 약 33.33ms
 - 20Hz: 50ms
+- 0Hz: uncapped, UDP 입력마다 latest snapshot publish 요청
 
 ## 저지연 구조
 
@@ -165,7 +175,7 @@ UDP packet 수신
 WebSocket message
   -> latest ref 갱신
   -> requestAnimationFrame loop
-  -> VITE_RENDER_HZ 상한 내에서 React state update
+  -> dashboardRenderHz 상한 내에서 React state update
 ```
 
 ## Forza Horizon 6 설정
@@ -236,6 +246,9 @@ http://192.168.0.25:5173
   "host": "0.0.0.0",
   "broadcastHz": 60,
   "broadcastIntervalMs": 16.666666666666668,
+  "transportMode": "json",
+  "dashboardRenderHz": 60,
+  "websocketSendTimeoutMs": 50,
   "mockTelemetry": false,
   "connectionTimeoutMs": 2000
 }
@@ -265,21 +278,36 @@ http://192.168.0.25:5173
 }
 ```
 
+### GET /api/time
+
+브라우저가 PC 서버 시각과 태블릿 시각의 차이를 보정할 때 사용합니다. 대시보드의 `Age` 값은 이 clock offset을 반영해서 계산합니다.
+
+```json
+{
+  "ok": true,
+  "serverTimeMs": 1734567890000
+}
+```
+
 ## WebSocket
 
 경로:
 
 ```text
 /ws/telemetry
+/ws/telemetry.bin
 ```
 
 브라우저는 현재 접속 host를 기준으로 주소를 자동 생성합니다.
 
 ```ts
 ws://${window.location.host}/ws/telemetry
+ws://${window.location.host}/ws/telemetry.bin
 ```
 
 HTTPS 환경에서는 자동으로 `wss://`를 사용합니다.
+
+JSON compatible 모드는 `/ws/telemetry`를 사용하고, Binary low latency 모드는 `/ws/telemetry.bin`을 사용합니다. Settings 화면에서 Transport Mode를 바꾸면 브라우저 클라이언트가 자동으로 재연결합니다.
 
 ## Parser 메모
 

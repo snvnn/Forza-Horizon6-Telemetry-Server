@@ -1,3 +1,5 @@
+export type TransportMode = "json" | "binary";
+
 export type ServerConfig = {
   gameAdapter: string;
   httpHost: string;
@@ -6,6 +8,9 @@ export type ServerConfig = {
   udpPort: number;
   udpReceiveBufferBytes: number;
   broadcastHz: number;
+  transportMode: TransportMode;
+  dashboardRenderHz: number;
+  websocketSendTimeoutMs: number;
   connectionTimeoutMs: number;
   mockTelemetry: boolean;
   debugPacket: boolean;
@@ -61,6 +66,9 @@ export type StatusResponse = {
   gameAdapter: string;
   broadcastHz: number;
   broadcastIntervalMs: number;
+  transportMode: TransportMode;
+  dashboardRenderHz: number;
+  websocketSendTimeoutMs: number;
   broadcastStats?: {
     broadcastRequestCount: number;
     broadcastCount: number;

@@ -10,7 +10,6 @@ $PackageDir = Join-Path $ReleaseRoot $PackageName
 $ZipPath = Join-Path $ReleaseRoot "$PackageName.zip"
 $DashboardDist = Join-Path $RepoRoot "apps\dashboard\dist"
 $ExePath = Join-Path $RepoRoot "target\release\sim-telemetry-server.exe"
-$GuiExePath = Join-Path $RepoRoot "target\release\sim-telemetry-server-gui.exe"
 
 $ReleaseRootFull = [System.IO.Path]::GetFullPath($ReleaseRoot)
 $PackageDirFull = [System.IO.Path]::GetFullPath($PackageDir)
@@ -29,9 +28,6 @@ Write-Host "Building Rust release binary..."
 if (-not (Test-Path -LiteralPath $ExePath)) {
   throw "Expected executable was not found: $ExePath"
 }
-if (-not (Test-Path -LiteralPath $GuiExePath)) {
-  throw "Expected GUI executable was not found: $GuiExePath"
-}
 
 Write-Host "Preparing release directory..."
 if (Test-Path -LiteralPath $PackageDirFull) {
@@ -44,7 +40,6 @@ if (Test-Path -LiteralPath $ZipPathFull) {
 New-Item -ItemType Directory -Path $PackageDirFull | Out-Null
 
 Copy-Item -LiteralPath $ExePath -Destination (Join-Path $PackageDirFull "sim-telemetry-server.exe")
-Copy-Item -LiteralPath $GuiExePath -Destination (Join-Path $PackageDirFull "sim-telemetry-server-gui.exe")
 Copy-Item -LiteralPath (Join-Path $RepoRoot "config.example.json") -Destination $PackageDirFull
 Copy-Item -LiteralPath (Join-Path $RepoRoot "README-WINDOWS.md") -Destination $PackageDirFull
 

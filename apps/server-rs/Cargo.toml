@@ -3,17 +3,15 @@ name = "forza-telemetry-server"
 version = "0.1.0"
 edition = "2021"
 default-run = "sim-telemetry-server"
+autobins = false
 
 [[bin]]
 name = "sim-telemetry-server"
 path = "src/main.rs"
 
-[[bin]]
-name = "sim-telemetry-server-gui"
-path = "src/bin/sim_telemetry_server_gui.rs"
-
 [dependencies]
 axum = { version = "0.8", features = ["ws"] }
+bytes = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 socket2 = "0.6"
@@ -21,4 +19,10 @@ tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal
 tower-http = { version = "0.6", features = ["fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-windows-sys = { version = "0.61", features = ["Win32_Media"] }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Media",
+  "Win32_System_LibraryLoader",
+  "Win32_UI_WindowsAndMessaging"
+] }

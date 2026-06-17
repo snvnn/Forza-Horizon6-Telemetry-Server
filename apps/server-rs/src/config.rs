@@ -7,6 +7,15 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 pub const SUPPORTED_GAME_ADAPTERS: &[&str] = &["forza-horizon-6"];
+pub const DEFAULT_BROADCAST_HZ: f64 = 60.0;
+pub const MAX_BROADCAST_HZ: f64 = 240.0;
+pub const DEFAULT_DASHBOARD_RENDER_HZ: u16 = 60;
+pub const MAX_DASHBOARD_RENDER_HZ: u16 = 240;
+pub const DEFAULT_WEBSOCKET_SEND_TIMEOUT_MS: u64 = 50;
+pub const MIN_WEBSOCKET_SEND_TIMEOUT_MS: u64 = 10;
+pub const MAX_WEBSOCKET_SEND_TIMEOUT_MS: u64 = 1000;
+pub const TRANSPORT_JSON: &str = "json";
+pub const TRANSPORT_BINARY: &str = "binary";
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
@@ -18,6 +27,9 @@ pub struct AppConfig {
     pub udp_receive_buffer_bytes: usize,
     pub broadcast_hz: f64,
     pub broadcast_interval_ms: f64,
+    pub transport_mode: String,
+    pub dashboard_render_hz: u16,
+    pub websocket_send_timeout_ms: u64,
     pub connection_timeout_ms: u64,
     pub mock_telemetry: bool,
     pub debug_packet: bool,
@@ -36,6 +48,9 @@ pub struct PublicConfig {
     pub udp_port: u16,
     pub udp_receive_buffer_bytes: usize,
     pub broadcast_hz: f64,
+    pub transport_mode: String,
+    pub dashboard_render_hz: u16,
+    pub websocket_send_timeout_ms: u64,
     pub connection_timeout_ms: u64,
     pub mock_telemetry: bool,
     pub debug_packet: bool,
@@ -51,6 +66,9 @@ struct PartialConfig {
     udp_port: Option<u16>,
     udp_receive_buffer_bytes: Option<usize>,
     broadcast_hz: Option<f64>,
+    transport_mode: Option<String>,
+    dashboard_render_hz: Option<u16>,
+    websocket_send_timeout_ms: Option<u64>,
     connection_timeout_ms: Option<u64>,
     mock_telemetry: Option<bool>,
     debug_packet: Option<bool>,
@@ -63,8 +81,14 @@ impl AppConfig {
         config_path: PathBuf,
         dashboard_dist_dir: PathBuf,
     ) -> Self {
+        let broadcast_interval_ms = if public.broadcast_hz == 0.0 {
+            0.0
+        } else {
+            1000.0 / public.broadcast_hz
+        };
+
         Self {
-            broadcast_interval_ms: 1000.0 / public.broadcast_hz,
+            broadcast_interval_ms,
             game_adapter: public.game_adapter,
             http_host: public.http_host,
             http_port: public.http_port,
@@ -72,6 +96,9 @@ impl AppConfig {
             udp_port: public.udp_port,
             udp_receive_buffer_bytes: public.udp_receive_buffer_bytes,
             broadcast_hz: public.broadcast_hz,
+            transport_mode: public.transport_mode,
+            dashboard_render_hz: public.dashboard_render_hz,
+            websocket_send_timeout_ms: public.websocket_send_timeout_ms,
             connection_timeout_ms: public.connection_timeout_ms,
             mock_telemetry: public.mock_telemetry,
             debug_packet: public.debug_packet,
@@ -90,6 +117,9 @@ impl AppConfig {
             udp_port: self.udp_port,
             udp_receive_buffer_bytes: self.udp_receive_buffer_bytes,
             broadcast_hz: self.broadcast_hz,
+            transport_mode: self.transport_mode.clone(),
+            dashboard_render_hz: self.dashboard_render_hz,
+            websocket_send_timeout_ms: self.websocket_send_timeout_ms,
             connection_timeout_ms: self.connection_timeout_ms,
             mock_telemetry: self.mock_telemetry,
             debug_packet: self.debug_packet,
@@ -181,9 +211,22 @@ pub fn validate_public_config(config: &PublicConfig) -> Result<(), Vec<String>> 
         errors.push("HTTP port and UDP port must be different".to_string());
     }
 
-    if !config.broadcast_hz.is_finite() || config.broadcast_hz < 1.0 || config.broadcast_hz > 120.0
+    if !is_valid_broadcast_hz(config.broadcast_hz) {
+        errors.push("broadcastHz must be 0 for uncapped or between 1 and 240".to_string());
+    }
+
+    if !is_valid_transport_mode(&config.transport_mode) {
+        errors.push("transportMode must be 'json' or 'binary'".to_string());
+    }
+
+    if config.dashboard_render_hz == 0 || config.dashboard_render_hz > MAX_DASHBOARD_RENDER_HZ {
+        errors.push("dashboardRenderHz must be between 1 and 240".to_string());
+    }
+
+    if !(MIN_WEBSOCKET_SEND_TIMEOUT_MS..=MAX_WEBSOCKET_SEND_TIMEOUT_MS)
+        .contains(&config.websocket_send_timeout_ms)
     {
-        errors.push("broadcastHz must be between 1 and 120".to_string());
+        errors.push("websocketSendTimeoutMs must be between 10 and 1000".to_string());
     }
 
     if config.connection_timeout_ms < 500 {
@@ -231,7 +274,10 @@ fn default_public_config() -> PublicConfig {
         udp_host: "0.0.0.0".to_string(),
         udp_port: 5400,
         udp_receive_buffer_bytes: 1_048_576,
-        broadcast_hz: 60.0,
+        broadcast_hz: DEFAULT_BROADCAST_HZ,
+        transport_mode: TRANSPORT_JSON.to_string(),
+        dashboard_render_hz: DEFAULT_DASHBOARD_RENDER_HZ,
+        websocket_send_timeout_ms: DEFAULT_WEBSOCKET_SEND_TIMEOUT_MS,
         connection_timeout_ms: 2000,
         mock_telemetry: false,
         debug_packet: false,
@@ -264,6 +310,27 @@ fn apply_env_config(config: &mut PublicConfig) {
     }
     if let Some(value) = parse_hz(env::var("TELEMETRY_BROADCAST_HZ").ok().as_deref()) {
         config.broadcast_hz = value;
+    }
+    if let Some(value) = parse_transport_mode(
+        env::var("TRANSPORT_MODE")
+            .ok()
+            .or_else(|| env::var("TELEMETRY_TRANSPORT_MODE").ok())
+            .as_deref(),
+    ) {
+        config.transport_mode = value;
+    }
+    if let Some(value) = parse_render_hz(
+        env::var("DASHBOARD_RENDER_HZ")
+            .ok()
+            .or_else(|| env::var("VITE_RENDER_HZ").ok())
+            .as_deref(),
+    ) {
+        config.dashboard_render_hz = value;
+    }
+    if let Some(value) =
+        parse_websocket_send_timeout_ms(env::var("WEBSOCKET_SEND_TIMEOUT_MS").ok().as_deref())
+    {
+        config.websocket_send_timeout_ms = value;
     }
     if let Some(value) =
         parse_optional_positive_u64(env::var("CONNECTION_TIMEOUT_MS").ok().as_deref())
@@ -299,6 +366,15 @@ fn apply_partial_config(config: &mut PublicConfig, partial: PartialConfig) {
     }
     if let Some(value) = partial.broadcast_hz {
         config.broadcast_hz = value;
+    }
+    if let Some(value) = partial.transport_mode {
+        config.transport_mode = value;
+    }
+    if let Some(value) = partial.dashboard_render_hz {
+        config.dashboard_render_hz = value;
+    }
+    if let Some(value) = partial.websocket_send_timeout_ms {
+        config.websocket_send_timeout_ms = value;
     }
     if let Some(value) = partial.connection_timeout_ms {
         config.connection_timeout_ms = value;
@@ -433,7 +509,35 @@ fn parse_bool(value: Option<&str>) -> Option<bool> {
 fn parse_hz(value: Option<&str>) -> Option<f64> {
     value
         .and_then(|raw| raw.trim().parse::<f64>().ok())
-        .filter(|hz| hz.is_finite() && *hz >= 1.0 && *hz <= 120.0)
+        .filter(|hz| is_valid_broadcast_hz(*hz))
+}
+
+fn is_valid_broadcast_hz(hz: f64) -> bool {
+    hz.is_finite() && (hz == 0.0 || (hz >= 1.0 && hz <= MAX_BROADCAST_HZ))
+}
+
+fn parse_transport_mode(value: Option<&str>) -> Option<String> {
+    value
+        .map(|raw| raw.trim().to_ascii_lowercase())
+        .filter(|mode| is_valid_transport_mode(mode))
+}
+
+fn is_valid_transport_mode(mode: &str) -> bool {
+    matches!(mode, TRANSPORT_JSON | TRANSPORT_BINARY)
+}
+
+fn parse_render_hz(value: Option<&str>) -> Option<u16> {
+    value
+        .and_then(|raw| raw.trim().parse::<u16>().ok())
+        .filter(|hz| *hz >= 1 && *hz <= MAX_DASHBOARD_RENDER_HZ)
+}
+
+fn parse_websocket_send_timeout_ms(value: Option<&str>) -> Option<u64> {
+    value
+        .and_then(|raw| raw.trim().parse::<u64>().ok())
+        .filter(|timeout| {
+            (MIN_WEBSOCKET_SEND_TIMEOUT_MS..=MAX_WEBSOCKET_SEND_TIMEOUT_MS).contains(timeout)
+        })
 }
 
 fn parse_usize(value: Option<&str>) -> Option<usize> {
@@ -467,4 +571,72 @@ fn is_private_ipv4(ip: Ipv4Addr) -> bool {
     octets[0] == 10
         || (octets[0] == 172 && (16..=31).contains(&octets[1]))
         || (octets[0] == 192 && octets[1] == 168)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_uncapped_and_high_broadcast_hz() {
+        let mut config = default_public_config();
+        config.broadcast_hz = 0.0;
+        assert!(validate_public_config(&config).is_ok());
+
+        config.broadcast_hz = MAX_BROADCAST_HZ;
+        assert!(validate_public_config(&config).is_ok());
+
+        let app_config = AppConfig::from_public(
+            config,
+            250,
+            PathBuf::from("config.json"),
+            PathBuf::from("static"),
+        );
+        assert!((app_config.broadcast_interval_ms - (1000.0 / MAX_BROADCAST_HZ)).abs() < 0.001);
+    }
+
+    #[test]
+    fn rejects_invalid_broadcast_hz_values() {
+        let mut config = default_public_config();
+        config.broadcast_hz = 0.5;
+        assert!(validate_public_config(&config).is_err());
+
+        config.broadcast_hz = MAX_BROADCAST_HZ + 1.0;
+        assert!(validate_public_config(&config).is_err());
+    }
+
+    #[test]
+    fn validates_low_latency_config_ranges() {
+        let mut config = default_public_config();
+        config.transport_mode = TRANSPORT_BINARY.to_string();
+        config.dashboard_render_hz = MAX_DASHBOARD_RENDER_HZ;
+        config.websocket_send_timeout_ms = MAX_WEBSOCKET_SEND_TIMEOUT_MS;
+        assert!(validate_public_config(&config).is_ok());
+
+        config.dashboard_render_hz = MAX_DASHBOARD_RENDER_HZ + 1;
+        assert!(validate_public_config(&config).is_err());
+
+        config.dashboard_render_hz = DEFAULT_DASHBOARD_RENDER_HZ;
+        config.websocket_send_timeout_ms = MIN_WEBSOCKET_SEND_TIMEOUT_MS - 5;
+        assert!(validate_public_config(&config).is_err());
+
+        config.websocket_send_timeout_ms = DEFAULT_WEBSOCKET_SEND_TIMEOUT_MS;
+        config.transport_mode = "raw".to_string();
+        assert!(validate_public_config(&config).is_err());
+    }
+
+    #[test]
+    fn uncapped_broadcast_interval_is_zero() {
+        let mut config = default_public_config();
+        config.broadcast_hz = 0.0;
+
+        let app_config = AppConfig::from_public(
+            config,
+            250,
+            PathBuf::from("config.json"),
+            PathBuf::from("static"),
+        );
+
+        assert_eq!(app_config.broadcast_interval_ms, 0.0);
+    }
 }

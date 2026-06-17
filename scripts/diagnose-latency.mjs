@@ -104,6 +104,8 @@ function summarize(samples) {
     },
     broadcast: {
       configuredHz: nullableNumber(last.broadcastHz),
+      transportMode: typeof last.transportMode === "string" ? last.transportMode : "unknown",
+      dashboardRenderHz: nullableNumber(last.dashboardRenderHz),
       estimatedHzLast: nullableNumber(broadcastStatsLast.estimatedBroadcastHz),
       requestsDelta: broadcastRequestsDelta,
       framesDelta: broadcastFramesDelta,
@@ -115,6 +117,7 @@ function summarize(samples) {
       maxPayloadBytes: numberOrZero(broadcastStatsLast.maxPayloadBytes)
     },
     websocket: {
+      sendTimeoutMs: nullableNumber(last.websocketSendTimeoutMs),
       sendDelta: websocketSendDelta,
       sendMeasuredHz: rate(websocketSendDelta, elapsedSeconds),
       timeoutDelta: websocketTimeoutDelta,
@@ -152,7 +155,9 @@ function printSummary(summary) {
   console.log(`  Recent gaps:       ${formatRecentGaps(summary.udp.recentPacketGaps)}`);
   console.log("");
   console.log("Broadcast");
-  console.log(`  Configured:        ${formatNumber(summary.broadcast.configuredHz, 1)} Hz`);
+  console.log(`  Configured:        ${formatBroadcastSetting(summary.broadcast.configuredHz)}`);
+  console.log(`  Transport:         ${summary.broadcast.transportMode}`);
+  console.log(`  Dashboard render:  ${formatNumber(summary.broadcast.dashboardRenderHz, 0)} Hz`);
   console.log(`  Measured rate:     ${formatNumber(summary.broadcast.measuredHz, 1)} Hz`);
   console.log(`  EMA rate:          ${formatNumber(summary.broadcast.estimatedHzLast, 1)} Hz`);
   console.log(`  Requests:          ${summary.broadcast.requestsDelta}`);
@@ -163,6 +168,7 @@ function printSummary(summary) {
   console.log(`  Payload:           ${summary.broadcast.lastPayloadBytes} bytes`);
   console.log("");
   console.log("WebSocket send");
+  console.log(`  Timeout setting:   ${formatNumber(summary.websocket.sendTimeoutMs, 0)} ms`);
   console.log(`  Sends:             ${summary.websocket.sendDelta}`);
   console.log(`  Measured rate:     ${formatNumber(summary.websocket.sendMeasuredHz, 1)} Hz`);
   console.log(`  Timeouts:          ${summary.websocket.timeoutDelta}`);
@@ -287,6 +293,13 @@ function formatNumber(value, fractionDigits) {
     return "--";
   }
   return value.toFixed(fractionDigits);
+}
+
+function formatBroadcastSetting(value) {
+  if (value == null || !Number.isFinite(value)) {
+    return "--";
+  }
+  return value === 0 ? "Uncapped" : `${value.toFixed(1)} Hz`;
 }
 
 function yesNo(value) {

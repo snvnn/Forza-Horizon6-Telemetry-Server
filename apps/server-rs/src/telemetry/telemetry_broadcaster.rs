@@ -6,27 +6,37 @@ use std::{
 
 use tokio::{select, sync::watch, time::Instant};
 
+use bytes::Bytes;
 use serde::Serialize;
 
-use super::telemetry_types::{now_millis, TelemetryMessage, TelemetrySnapshot};
+use super::{
+    telemetry_binary::encode_binary_telemetry_frame,
+    telemetry_types::{now_millis, TelemetryMessage, TelemetrySnapshot},
+};
 
 const BROADCAST_INTERVAL_EMA_ALPHA: f64 = 0.1;
 const BROADCAST_TOKEN_CAPACITY: f64 = 2.0;
 
 #[derive(Clone, Debug)]
 pub struct TelemetryBroadcastFrame {
-    pub payload: Arc<str>,
+    pub text_payload: Arc<str>,
+    pub binary_payload: Bytes,
 }
 
 impl TelemetryBroadcastFrame {
-    pub fn from_snapshot(snapshot: TelemetrySnapshot) -> Result<Self, serde_json::Error> {
-        let payload = serde_json::to_string(&TelemetryMessage {
+    pub fn from_snapshot(
+        snapshot: TelemetrySnapshot,
+        sequence: u32,
+    ) -> Result<Self, serde_json::Error> {
+        let binary_payload = encode_binary_telemetry_frame(&snapshot, sequence);
+        let text_payload = serde_json::to_string(&TelemetryMessage {
             message_type: "telemetry",
             snapshot,
         })?;
 
         Ok(Self {
-            payload: Arc::from(payload),
+            text_payload: Arc::from(text_payload),
+            binary_payload,
         })
     }
 }
@@ -74,30 +84,35 @@ pub struct TelemetryBroadcaster {
     request_tx: watch::Sender<Option<TelemetrySnapshot>>,
     watch_tx: watch::Sender<Option<TelemetryBroadcastFrame>>,
     interval_tx: watch::Sender<Duration>,
+    websocket_send_timeout_ms: Arc<AtomicU64>,
     stats: Arc<Mutex<TelemetryBroadcastStatsInner>>,
     request_count: Arc<AtomicU64>,
 }
 
 impl TelemetryBroadcaster {
-    pub fn new(broadcast_hz: f64) -> Self {
-        let interval = Duration::from_secs_f64(1.0 / broadcast_hz);
+    pub fn new(broadcast_hz: f64, websocket_send_timeout_ms: u64) -> Self {
+        let interval = broadcast_interval(broadcast_hz);
         let (request_tx, request_rx) = watch::channel(None);
         let (watch_tx, _) = watch::channel(None);
         let (interval_tx, interval_rx) = watch::channel(interval);
+        let websocket_send_timeout_ms = Arc::new(AtomicU64::new(websocket_send_timeout_ms));
         let stats = Arc::new(Mutex::new(TelemetryBroadcastStatsInner::default()));
         let request_count = Arc::new(AtomicU64::new(0));
+        let broadcast_sequence = Arc::new(AtomicU64::new(0));
 
         tokio::spawn(run_broadcast_loop(
             request_rx,
             watch_tx.clone(),
             interval_rx,
             stats.clone(),
+            broadcast_sequence.clone(),
         ));
 
         Self {
             request_tx,
             watch_tx,
             interval_tx,
+            websocket_send_timeout_ms,
             stats,
             request_count,
         }
@@ -119,8 +134,17 @@ impl TelemetryBroadcaster {
     }
 
     pub fn set_broadcast_hz(&self, broadcast_hz: f64) {
-        let interval = Duration::from_secs_f64(1.0 / broadcast_hz);
+        let interval = broadcast_interval(broadcast_hz);
         self.interval_tx.send_replace(interval);
+    }
+
+    pub fn set_websocket_send_timeout_ms(&self, timeout_ms: u64) {
+        self.websocket_send_timeout_ms
+            .store(timeout_ms, Ordering::Relaxed);
+    }
+
+    pub fn websocket_send_timeout(&self) -> Duration {
+        Duration::from_millis(self.websocket_send_timeout_ms.load(Ordering::Relaxed))
     }
 
     pub fn stats(&self) -> TelemetryBroadcastStats {
@@ -180,6 +204,7 @@ async fn run_broadcast_loop(
     watch_tx: watch::Sender<Option<TelemetryBroadcastFrame>>,
     mut interval_rx: watch::Receiver<Duration>,
     stats: Arc<Mutex<TelemetryBroadcastStatsInner>>,
+    broadcast_sequence: Arc<AtomicU64>,
 ) {
     let mut interval = *interval_rx.borrow();
     let mut tokens = 1.0;
@@ -201,15 +226,25 @@ async fn run_broadcast_loop(
                 let pending = request_rx.borrow().clone();
                 refill_broadcast_tokens(&mut tokens, &mut last_refill, interval);
 
-                if tokens >= 1.0 {
+                if interval.is_zero() || tokens >= 1.0 {
                     let Some(snapshot) = pending else {
                         continue;
                     };
-                    publish_snapshot(&watch_tx, &stats, snapshot);
-                    tokens -= 1.0;
+                    publish_snapshot(&watch_tx, &stats, &broadcast_sequence, snapshot);
+                    if !interval.is_zero() {
+                        tokens -= 1.0;
+                    }
                 }
             }
         }
+    }
+}
+
+fn broadcast_interval(broadcast_hz: f64) -> Duration {
+    if broadcast_hz == 0.0 {
+        Duration::ZERO
+    } else {
+        Duration::from_secs_f64(1.0 / broadcast_hz)
     }
 }
 
@@ -226,14 +261,18 @@ fn refill_broadcast_tokens(tokens: &mut f64, last_refill: &mut Instant, interval
 fn publish_snapshot(
     watch_tx: &watch::Sender<Option<TelemetryBroadcastFrame>>,
     stats: &Arc<Mutex<TelemetryBroadcastStatsInner>>,
+    broadcast_sequence: &Arc<AtomicU64>,
     snapshot: TelemetrySnapshot,
 ) {
     // Serialize once per broadcast tick, not once per WebSocket client. This
     // keeps extra tablets/phones from multiplying JSON CPU cost.
     let snapshot_age_ms = now_millis().saturating_sub(snapshot.timestamp);
-    match TelemetryBroadcastFrame::from_snapshot(snapshot) {
+    let sequence = broadcast_sequence
+        .fetch_add(1, Ordering::Relaxed)
+        .wrapping_add(1) as u32;
+    match TelemetryBroadcastFrame::from_snapshot(snapshot, sequence) {
         Ok(frame) => {
-            record_broadcast(stats, frame.payload.len(), snapshot_age_ms);
+            record_broadcast(stats, frame.text_payload.len(), snapshot_age_ms);
             watch_tx.send_replace(Some(frame));
         }
         Err(error) => {
@@ -278,4 +317,64 @@ fn record_websocket_send_duration(stats: &mut TelemetryBroadcastStatsInner, elap
     let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
     stats.last_websocket_send_ms = Some(elapsed_ms);
     stats.max_websocket_send_ms = stats.max_websocket_send_ms.max(elapsed_ms);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::telemetry::{
+        telemetry_binary::BINARY_TELEMETRY_FRAME_LEN,
+        telemetry_types::{InputTelemetry, TelemetrySnapshot, VehicleTelemetry},
+    };
+
+    fn snapshot() -> TelemetrySnapshot {
+        TelemetrySnapshot {
+            timestamp: now_millis(),
+            connected: true,
+            vehicle: VehicleTelemetry {
+                speed_kmh: 100.0,
+                rpm: 6000.0,
+                max_rpm: Some(8500.0),
+                gear: 3,
+                power_kw: Some(200.0),
+                torque_nm: Some(300.0),
+                boost: Some(1.0),
+            },
+            input: InputTelemetry {
+                throttle: 0.5,
+                brake: 0.0,
+                clutch: None,
+                steer: 0.1,
+                handbrake: None,
+            },
+            tires: None,
+            motion: None,
+            race: None,
+        }
+    }
+
+    #[test]
+    fn broadcast_frame_contains_json_and_binary_payloads() {
+        let frame = TelemetryBroadcastFrame::from_snapshot(snapshot(), 99).unwrap();
+        let json: serde_json::Value = serde_json::from_str(&frame.text_payload).unwrap();
+
+        assert_eq!(json["type"], "telemetry");
+        assert_eq!(json["snapshot"]["vehicle"]["gear"], 3);
+        assert_eq!(frame.binary_payload.len(), BINARY_TELEMETRY_FRAME_LEN);
+        assert_eq!(
+            u32::from_le_bytes(frame.binary_payload[4..8].try_into().unwrap()),
+            99
+        );
+    }
+
+    #[test]
+    fn uncapped_interval_is_zero_and_token_refill_is_safe() {
+        let interval = broadcast_interval(0.0);
+        let mut tokens = 0.0;
+        let mut last_refill = Instant::now();
+
+        assert!(interval.is_zero());
+        refill_broadcast_tokens(&mut tokens, &mut last_refill, interval);
+        assert_eq!(tokens, 0.0);
+    }
 }

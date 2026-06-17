@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ConfigResponse } from "../settings/settingsTypes";
 import { TelemetryClient } from "./telemetryClient";
 import type {
   TelemetryClientMetrics,
@@ -8,12 +9,12 @@ import type {
 
 function parseRenderHz(): number {
   const value = Number(import.meta.env.VITE_RENDER_HZ);
-  return Number.isFinite(value) && value >= 1 && value <= 120 ? value : 60;
+  return Number.isFinite(value) && value >= 1 && value <= 240 ? value : 60;
 }
 
 export function useTelemetry() {
   const client = useMemo(() => new TelemetryClient(), []);
-  const renderHz = useMemo(parseRenderHz, []);
+  const [renderHz, setRenderHz] = useState(parseRenderHz);
   const renderIntervalMs = 1000 / renderHz;
   const [snapshot, setSnapshot] = useState<TelemetrySnapshot | null>(null);
   const [clientMetrics, setClientMetrics] = useState<TelemetryClientMetrics>(() =>
@@ -23,8 +24,39 @@ export function useTelemetry() {
     useState<TelemetryConnectionStatus>("connecting");
 
   useEffect(() => {
+    let cancelled = false;
     const unsubscribe = client.subscribeStatus(setConnectionStatus);
-    client.start();
+
+    const refreshRuntimeConfig = async () => {
+      const response = await fetch("/api/config");
+      if (!response.ok) {
+        throw new Error("Failed to read dashboard runtime config");
+      }
+      const data = (await response.json()) as ConfigResponse;
+      if (cancelled) {
+        return;
+      }
+      client.setTransportMode(data.config.transportMode);
+      setRenderHz((current) =>
+        current === data.config.dashboardRenderHz ? current : data.config.dashboardRenderHz
+      );
+    };
+
+    client.syncServerClock().catch(() => undefined);
+    refreshRuntimeConfig()
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) {
+          client.start();
+        }
+      });
+
+    const configTimerId = window.setInterval(() => {
+      refreshRuntimeConfig().catch(() => undefined);
+    }, 2000);
+    const clockSyncTimerId = window.setInterval(() => {
+      client.syncServerClock().catch(() => undefined);
+    }, 5000);
 
     // Initial HTTP snapshot fallback keeps the dashboard useful while the
     // WebSocket handshake is still connecting, and makes design screenshots
@@ -43,6 +75,9 @@ export function useTelemetry() {
       });
 
     return () => {
+      cancelled = true;
+      window.clearInterval(configTimerId);
+      window.clearInterval(clockSyncTimerId);
       unsubscribe();
       client.stop();
     };
@@ -66,7 +101,7 @@ export function useTelemetry() {
         metrics.receiveToRenderMs =
           metrics.lastReceivePerformanceMs == null ? null : now - metrics.lastReceivePerformanceMs;
         metrics.renderSnapshotAgeMs =
-          latest?.timestamp == null ? null : Date.now() - latest.timestamp;
+          latest?.timestamp == null ? null : client.getServerAlignedNow() - latest.timestamp;
 
         setSnapshot(latest);
         setClientMetrics(metrics);

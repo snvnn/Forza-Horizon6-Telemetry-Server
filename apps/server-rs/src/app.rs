@@ -19,7 +19,8 @@ pub async fn run(options: HttpLaunchOptions) -> std::io::Result<()> {
 
     let config = load_config();
     let store = TelemetryStore::new(config.connection_timeout_ms);
-    let broadcaster = TelemetryBroadcaster::new(config.broadcast_hz);
+    let broadcaster =
+        TelemetryBroadcaster::new(config.broadcast_hz, config.websocket_send_timeout_ms);
     let config = Arc::new(RwLock::new(config));
     let runtime = TelemetryRuntimeManager::new(config.clone(), store.clone(), broadcaster.clone());
 
@@ -35,10 +36,13 @@ pub fn parse_launch_options() -> HttpLaunchOptions {
 
     for arg in env::args().skip(1) {
         match arg.as_str() {
+            "--server" => {}
             "--open-dashboard" => options.open_dashboard = true,
             "--open-settings" => options.open_settings = true,
             "--help" | "-h" => {
-                println!("Usage: sim-telemetry-server.exe [--open-dashboard] [--open-settings]");
+                println!(
+                    "Usage: sim-telemetry-server.exe [--server] [--open-dashboard] [--open-settings]"
+                );
             }
             _ => tracing::warn!(argument = arg, "unknown CLI argument ignored"),
         }

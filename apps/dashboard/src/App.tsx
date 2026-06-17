@@ -1,5 +1,5 @@
 import { SettingsPage } from "./settings/SettingsPage";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import type {
   TelemetryClientMetrics,
   TelemetryConnectionStatus,
@@ -10,6 +10,11 @@ import { useTelemetry } from "./telemetry/useTelemetry";
 const METERS_PER_SECOND_SQUARED_PER_G = 9.80665;
 const DISPLAY_MAX_G = 2.5;
 const SHIFT_LIGHT_COUNT = 36;
+const SHIFT_LIGHT_INDEXES = Array.from({ length: SHIFT_LIGHT_COUNT }, (_, index) => index);
+const STEER_CENTER_DEADZONE = 0.01;
+
+type TirePosition = "front-left" | "front-right" | "rear-left" | "rear-right";
+type TireTempTone = "unknown" | "cold" | "cool" | "optimal" | "warm" | "hot";
 
 type RaceDashboardProps = {
   snapshot: TelemetrySnapshot | null;
@@ -33,7 +38,42 @@ function formatInteger(value: number | undefined): string {
   if (value == null || !Number.isFinite(value)) {
     return "--";
   }
-  return Math.round(value).toLocaleString("en-US");
+  return String(Math.round(value));
+}
+
+function formatSpeedKmh(value: number | undefined): string {
+  if (value == null || !Number.isFinite(value)) {
+    return "--";
+  }
+  return String(Math.max(0, Math.floor(value)));
+}
+
+function formatTemperatureC(value: number | undefined): string {
+  if (value == null || !Number.isFinite(value)) {
+    return "--℃";
+  }
+  return `${value.toFixed(1)}℃`;
+}
+
+function tireTempTone(value: number | undefined): TireTempTone {
+  if (value == null || !Number.isFinite(value)) {
+    return "unknown";
+  }
+  // FH6 exposes temperatures but no official color thresholds, so these bands
+  // make the normal 80-105℃ race operating window visually neutral.
+  if (value < 60) {
+    return "cold";
+  }
+  if (value < 80) {
+    return "cool";
+  }
+  if (value <= 105) {
+    return "optimal";
+  }
+  if (value <= 120) {
+    return "warm";
+  }
+  return "hot";
 }
 
 function formatPercent(value: number | undefined): string {
@@ -136,12 +176,12 @@ function formatSignedDelta(seconds: number | undefined): string {
   return `${sign}${formatDuration(Math.abs(seconds))}`;
 }
 
-function ShiftLights({ rpmRatio }: { rpmRatio: number }) {
+const ShiftLights = memo(function ShiftLights({ rpmRatio }: { rpmRatio: number }) {
   const activeCount = Math.round(rpmRatio * SHIFT_LIGHT_COUNT);
 
   return (
     <div className="race-shift-rail" aria-label="RPM shift lights">
-      {Array.from({ length: SHIFT_LIGHT_COUNT }, (_, index) => {
+      {SHIFT_LIGHT_INDEXES.map((index) => {
         const active = index < activeCount;
         const band = index < 14 ? "green" : index < 24 ? "amber" : index < 31 ? "red" : "blue";
         return (
@@ -153,7 +193,7 @@ function ShiftLights({ rpmRatio }: { rpmRatio: number }) {
       })}
     </div>
   );
-}
+});
 
 function InputBar({
   label,
@@ -179,7 +219,8 @@ function InputBar({
 
 function SteerBar({ value }: { value: number | undefined }) {
   const normalized = clamp(value ?? 0, -1, 1);
-  const dotLeft = ((normalized + 1) / 2) * 100;
+  const visualNormalized = Math.abs(normalized) < STEER_CENTER_DEADZONE ? 0 : normalized;
+  const dotLeft = ((visualNormalized + 1) / 2) * 100;
 
   return (
     <div className="race-input-row">
@@ -188,7 +229,7 @@ function SteerBar({ value }: { value: number | undefined }) {
         <div className="race-steer-zero" />
         <div className="race-steer-dot" style={{ left: `${dotLeft}%` }} />
       </div>
-      <strong>{Math.round(normalized * 100)}%</strong>
+      <strong>{Math.round(visualNormalized * 100)}%</strong>
     </div>
   );
 }
@@ -215,28 +256,46 @@ function MetricBox({
   );
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({
+  title,
+  children,
+  className
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <section className="race-panel">
+    <section className={`race-panel ${className ?? ""}`}>
       <h2>{title}</h2>
       {children}
     </section>
   );
 }
 
-function TireCell({ label, value }: { label: string; value: number | undefined }) {
+function TireMapCorner({
+  position,
+  value
+}: {
+  position: TirePosition;
+  value: number | undefined;
+}) {
+  const tone = tireTempTone(value);
+
   return (
-    <div className="race-tire-cell">
-      <span>{label}</span>
-      <strong>{formatNumber(value, 1)}</strong>
-      <em>deg</em>
+    <div className={`race-tire-corner race-tire-${position}`}>
+      <strong className="race-tire-temperature">{formatTemperatureC(value)}</strong>
+      <span
+        aria-label={`${position} tire temperature ${formatTemperatureC(value)}`}
+        className={`race-tire-shape race-tire-temp-${tone}`}
+      />
     </div>
   );
 }
 
-function PowertrainPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
+const PowertrainPanel = memo(function PowertrainPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
   return (
-    <Panel title="Powertrain">
+    <Panel className="race-powertrain-panel" title="Powertrain">
       <div className="race-power-grid">
         <MetricBox accent="yellow" label="Power" unit="kW" value={formatInteger(snapshot.vehicle.powerKw)} />
         <MetricBox accent="red" label="Torque" unit="Nm" value={formatInteger(snapshot.vehicle.torqueNm)} />
@@ -244,11 +303,11 @@ function PowertrainPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
       </div>
     </Panel>
   );
-}
+});
 
-function InputsPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
+const InputsPanel = memo(function InputsPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
   return (
-    <Panel title="Inputs">
+    <Panel className="race-inputs-panel" title="Inputs">
       <div className="race-inputs">
         <InputBar label="Throttle" tone="green" value={snapshot.input.throttle} />
         <InputBar label="Brake" tone="red" value={snapshot.input.brake} />
@@ -258,9 +317,9 @@ function InputsPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
       </div>
     </Panel>
   );
-}
+});
 
-function RaceInfoPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
+const RaceInfoPanel = memo(function RaceInfoPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
   const race = snapshot.race;
   const lapDelta =
     race?.currentLapSeconds != null && race.bestLapSeconds != null
@@ -268,7 +327,7 @@ function RaceInfoPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
       : undefined;
 
   return (
-    <Panel title="Race Info">
+    <Panel className="race-race-info-panel" title="Race Info">
       <div className="race-info-grid">
         <MetricBox accent="yellow" label="Position" value={formatInteger(race?.position)} />
         <MetricBox accent="cyan" label="Lap Done" value={formatInteger(race?.lapNumber)} />
@@ -281,24 +340,24 @@ function RaceInfoPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
       </div>
     </Panel>
   );
-}
+});
 
-function TireTempsPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
+const TireTempsPanel = memo(function TireTempsPanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
   const tires = snapshot.tires;
 
   return (
-    <Panel title="Tire Temps">
-      <div className="race-tire-grid">
-        <TireCell label="FL" value={tires?.frontLeftTemp} />
-        <TireCell label="FR" value={tires?.frontRightTemp} />
-        <TireCell label="RL" value={tires?.rearLeftTemp} />
-        <TireCell label="RR" value={tires?.rearRightTemp} />
+    <Panel className="race-tire-panel" title="Tire Temps">
+      <div className="race-tire-map">
+        <TireMapCorner position="front-left" value={tires?.frontLeftTemp} />
+        <TireMapCorner position="front-right" value={tires?.frontRightTemp} />
+        <TireMapCorner position="rear-left" value={tires?.rearLeftTemp} />
+        <TireMapCorner position="rear-right" value={tires?.rearRightTemp} />
       </div>
     </Panel>
   );
-}
+});
 
-function GForcePanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
+const GForcePanel = memo(function GForcePanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
   const accelX = snapshot.motion?.accelX ?? 0;
   const accelY = snapshot.motion?.accelY ?? 0;
   const accelZ = snapshot.motion?.accelZ ?? 0;
@@ -311,13 +370,9 @@ function GForcePanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
   const markerY = 150 + clamp(longitudinalG / DISPLAY_MAX_G, -1, 1) * 108;
 
   return (
-    <Panel title="G-Force">
+    <Panel className="race-gforce-panel" title="G-Force">
       <div className="race-gforce">
         <div className="race-gforce-meter">
-          <span className="race-gforce-label race-gforce-label-top">FRONT</span>
-          <span className="race-gforce-label race-gforce-label-bottom">REAR</span>
-          <span className="race-gforce-label race-gforce-label-left">LEFT</span>
-          <span className="race-gforce-label race-gforce-label-right">RIGHT</span>
           <svg viewBox="0 0 300 300" role="img" aria-label="G-force load transfer">
             <circle className="race-g-ring race-g-ring-outer" cx="150" cy="150" r="124" />
             <circle className="race-g-ring" cx="150" cy="150" r="93" />
@@ -350,9 +405,9 @@ function GForcePanel({ snapshot }: { snapshot: TelemetrySnapshot }) {
       </div>
     </Panel>
   );
-}
+});
 
-function CenterCluster({ snapshot }: { snapshot: TelemetrySnapshot }) {
+const CenterCluster = memo(function CenterCluster({ snapshot }: { snapshot: TelemetrySnapshot }) {
   return (
     <section className="race-center-cluster">
       <div className="race-center-main">
@@ -362,7 +417,7 @@ function CenterCluster({ snapshot }: { snapshot: TelemetrySnapshot }) {
         </div>
         <div className="race-speed-block">
           <span>Speed</span>
-          <strong>{formatInteger(snapshot.vehicle.speedKmh)}</strong>
+          <strong>{formatSpeedKmh(snapshot.vehicle.speedKmh)}</strong>
           <em>km/h</em>
         </div>
       </div>
@@ -373,7 +428,7 @@ function CenterCluster({ snapshot }: { snapshot: TelemetrySnapshot }) {
       </div>
     </section>
   );
-}
+});
 
 function WaitingDashboard({
   connectionStatus,
@@ -416,8 +471,14 @@ function RaceTelemetryDashboard({
     );
   }
 
+  const showRaceInfo = shouldShowRaceInfo(snapshot);
+
   return (
-    <section className={`race-dashboard ${snapshot.connected ? "race-live" : "race-stale"}`}>
+    <section
+      className={`race-dashboard ${snapshot.connected ? "race-live" : "race-stale"} ${
+        showRaceInfo ? "race-mode" : "drive-mode"
+      }`}
+    >
       <header className="race-header">
         <div>
           <p className="race-kicker">FORZA HORIZON 6</p>
@@ -437,7 +498,7 @@ function RaceTelemetryDashboard({
       <ShiftLights rpmRatio={rpmRatio} />
       <div className="race-layout">
         <aside className="race-column">
-          {shouldShowRaceInfo(snapshot) ? <RaceInfoPanel snapshot={snapshot} /> : <InputsPanel snapshot={snapshot} />}
+          {showRaceInfo ? <RaceInfoPanel snapshot={snapshot} /> : <InputsPanel snapshot={snapshot} />}
           <TireTempsPanel snapshot={snapshot} />
         </aside>
         <CenterCluster snapshot={snapshot} />

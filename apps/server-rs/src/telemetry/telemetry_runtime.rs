@@ -78,6 +78,8 @@ impl TelemetryRuntimeManager {
         self.store
             .set_connection_timeout_ms(config.connection_timeout_ms);
         self.broadcaster.set_broadcast_hz(config.broadcast_hz);
+        self.broadcaster
+            .set_websocket_send_timeout_ms(config.websocket_send_timeout_ms);
 
         // UDP 수신기는 텔레메트리 런타임에 속한다. Settings 화면은 계속 살아 있고,
         // Start/Stop/Restart는 이 소켓과 관련 작업만 제어한다.

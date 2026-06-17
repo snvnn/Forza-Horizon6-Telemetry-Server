@@ -6,6 +6,9 @@
   "udpPort": 5400,
   "udpReceiveBufferBytes": 1048576,
   "broadcastHz": 60,
+  "transportMode": "json",
+  "dashboardRenderHz": 60,
+  "websocketSendTimeoutMs": 50,
   "connectionTimeoutMs": 2000,
   "mockTelemetry": false,
   "debugPacket": false

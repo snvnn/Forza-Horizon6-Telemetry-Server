@@ -42,8 +42,28 @@ function validateConfig(config: ServerConfig, supportedAdapters: string[]): stri
   ) {
     errors.push("UDP Receive Buffer must be between 8 KiB and 64 MiB.");
   }
-  if (!Number.isFinite(config.broadcastHz) || config.broadcastHz < 1 || config.broadcastHz > 120) {
-    errors.push("Broadcast Hz must be between 1 and 120.");
+  if (
+    !Number.isFinite(config.broadcastHz) ||
+    (config.broadcastHz !== 0 && (config.broadcastHz < 1 || config.broadcastHz > 240))
+  ) {
+    errors.push("Broadcast Hz must be 0 for uncapped or between 1 and 240.");
+  }
+  if (config.transportMode !== "json" && config.transportMode !== "binary") {
+    errors.push("Transport Mode must be JSON or Binary.");
+  }
+  if (
+    !Number.isInteger(config.dashboardRenderHz) ||
+    config.dashboardRenderHz < 1 ||
+    config.dashboardRenderHz > 240
+  ) {
+    errors.push("Dashboard Render Hz must be between 1 and 240.");
+  }
+  if (
+    !Number.isInteger(config.websocketSendTimeoutMs) ||
+    config.websocketSendTimeoutMs < 10 ||
+    config.websocketSendTimeoutMs > 1000
+  ) {
+    errors.push("WebSocket Send Timeout must be between 10 and 1000 ms.");
   }
   if (!Number.isFinite(config.connectionTimeoutMs) || config.connectionTimeoutMs < 500) {
     errors.push("Connection Timeout must be at least 500 ms.");
@@ -80,6 +100,13 @@ function formatBytes(value: number | null | undefined): string {
     return `${(value / 1024 / 1024).toFixed(1)} MiB`;
   }
   return `${Math.round(value / 1024)} KiB`;
+}
+
+function formatBroadcastSetting(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) {
+    return "--";
+  }
+  return value === 0 ? "Uncapped" : `${value} Hz`;
 }
 
 function formatGapHistogram(status: StatusResponse | null): string {
@@ -157,7 +184,9 @@ function StatusGrid({ status }: { status: StatusResponse | null }) {
     ["HTTP listening", status?.httpListeningAddress ?? "--"],
     ["Game connected", status?.gameConnected ? "Yes" : "No"],
     ["WebSocket clients", String(status?.websocketClients ?? 0)],
-    ["Broadcast", `${status?.broadcastHz ?? "--"} Hz`],
+    ["Broadcast", formatBroadcastSetting(status?.broadcastHz)],
+    ["Transport", status?.transportMode === "binary" ? "Binary low latency" : "JSON compatible"],
+    ["Dashboard render", `${status?.dashboardRenderHz ?? "--"} Hz`],
     ["Broadcast actual", `${formatOptionalNumber(status?.broadcastStats?.estimatedBroadcastHz, 1)} Hz`],
     ["Broadcast requests", String(status?.broadcastStats?.broadcastRequestCount ?? 0)],
     ["Broadcast frames", String(status?.broadcastStats?.broadcastCount ?? 0)],
@@ -170,6 +199,7 @@ function StatusGrid({ status }: { status: StatusResponse | null }) {
     ],
     ["Snapshot age max", `${status?.broadcastStats?.maxSnapshotAgeMsAtBroadcast ?? 0} ms`],
     ["Payload", formatBytes(status?.broadcastStats?.lastPayloadBytes)],
+    ["WS timeout setting", `${status?.websocketSendTimeoutMs ?? "--"} ms`],
     ["WS send max", `${formatOptionalNumber(status?.broadcastStats?.maxWebsocketSendMs, 1)} ms`],
     ["WS send timeouts", String(status?.broadcastStats?.websocketSendTimeouts ?? 0)],
     ["WS send errors", String(status?.broadcastStats?.websocketSendErrors ?? 0)],
@@ -287,7 +317,7 @@ export function SettingsPage() {
         : "";
       setNotice({
         tone: response.requiresTelemetryRestart || response.requiresAppRestart ? "warn" : "ok",
-        text: `Config saved.${restartText}${appRestartText}`
+        text: `Config saved. Broadcast, transport, dashboard render, and WebSocket timeout changes apply immediately.${restartText}${appRestartText}`
       });
       await refreshStatus();
     } catch (error) {
@@ -371,6 +401,20 @@ export function SettingsPage() {
               </label>
 
               <label>
+                <span>Transport Mode</span>
+                <select
+                  value={form.transportMode}
+                  onChange={(event) =>
+                    updateField("transportMode", event.target.value as ServerConfig["transportMode"])
+                  }
+                >
+                  <option value="json">JSON compatible</option>
+                  <option value="binary">Binary low latency</option>
+                </select>
+                <small>Binary uses /ws/telemetry.bin and omits race/lap fields in v1.</small>
+              </label>
+
+              <label>
                 <span>UDP Host</span>
                 <input
                   value={form.udpHost}
@@ -424,11 +468,38 @@ export function SettingsPage() {
                 <span>Broadcast Hz</span>
                 <input
                   type="number"
-                  min={1}
-                  max={120}
+                  min={0}
+                  max={240}
                   value={form.broadcastHz}
                   onChange={(event) => updateField("broadcastHz", Number(event.target.value))}
                 />
+                <small>0 = uncapped, 1-240 = capped WebSocket send rate.</small>
+              </label>
+
+              <label>
+                <span>Dashboard Render Hz</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={240}
+                  value={form.dashboardRenderHz}
+                  onChange={(event) => updateField("dashboardRenderHz", Number(event.target.value))}
+                />
+                <small>Controls React state/render copy rate without reconnecting WebSocket.</small>
+              </label>
+
+              <label>
+                <span>WebSocket Send Timeout ms</span>
+                <input
+                  type="number"
+                  min={10}
+                  max={1000}
+                  value={form.websocketSendTimeoutMs}
+                  onChange={(event) =>
+                    updateField("websocketSendTimeoutMs", Number(event.target.value))
+                  }
+                />
+                <small>Slow clients are dropped and auto-reconnect with the latest frame.</small>
               </label>
 
               <label>

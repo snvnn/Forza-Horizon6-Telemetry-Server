@@ -46,7 +46,26 @@ function parsePort(value, fallback) {
 
 function parseHz(value, fallback) {
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 120 ? parsed : fallback;
+  return Number.isFinite(parsed) && (parsed === 0 || (parsed >= 1 && parsed <= 240)) ? parsed : fallback;
+}
+
+function parseRenderHz(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 240 ? parsed : fallback;
+}
+
+function parseTransportMode(value, fallback) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "json" || normalized === "binary" ? normalized : fallback;
+}
+
+function parseSendTimeoutMs(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 10 && parsed <= 1000 ? parsed : fallback;
+}
+
+function formatHz(value) {
+  return value === 0 ? "uncapped" : `${value}Hz (${(1000 / value).toFixed(2)}ms)`;
 }
 
 function findNpmCommand() {
@@ -179,7 +198,9 @@ const host = env.HOST?.trim() || "0.0.0.0";
 const httpPort = parsePort(env.HTTP_PORT, 3000);
 const udpPort = parsePort(env.UDP_PORT, 5400);
 const broadcastHz = parseHz(env.TELEMETRY_BROADCAST_HZ, 60);
-const renderHz = parseHz(env.VITE_RENDER_HZ, 60);
+const renderHz = parseRenderHz(env.DASHBOARD_RENDER_HZ ?? env.VITE_RENDER_HZ, 60);
+const transportMode = parseTransportMode(env.TRANSPORT_MODE ?? env.TELEMETRY_TRANSPORT_MODE, "json");
+const websocketSendTimeoutMs = parseSendTimeoutMs(env.WEBSOCKET_SEND_TIMEOUT_MS, 50);
 
 const nodeMajor = Number(process.versions.node.split(".")[0]);
 record("Node.js", nodeMajor >= 20, `v${process.versions.node}`, true);
@@ -206,8 +227,10 @@ if (npm.version) {
 
 record("HTTP config", true, `${host}:${httpPort}`, false);
 record("UDP config", true, `${host}:${udpPort}`, false);
-record("Broadcast Hz", broadcastHz === Number(env.TELEMETRY_BROADCAST_HZ || 60), `${broadcastHz}Hz (${(1000 / broadcastHz).toFixed(2)}ms)`, false);
-record("Render Hz", renderHz === Number(env.VITE_RENDER_HZ || 60), `${renderHz}Hz (${(1000 / renderHz).toFixed(2)}ms)`, false);
+record("Broadcast Hz", broadcastHz === Number(env.TELEMETRY_BROADCAST_HZ || 60), formatHz(broadcastHz), false);
+record("Render Hz", renderHz === Number(env.DASHBOARD_RENDER_HZ ?? env.VITE_RENDER_HZ ?? 60), formatHz(renderHz), false);
+record("Transport Mode", transportMode === String(env.TRANSPORT_MODE ?? env.TELEMETRY_TRANSPORT_MODE ?? "json").trim().toLowerCase(), transportMode, false);
+record("WebSocket send timeout", websocketSendTimeoutMs === Number(env.WEBSOCKET_SEND_TIMEOUT_MS || 50), `${websocketSendTimeoutMs}ms`, false);
 
 const tcp = await checkTcpPort(host, httpPort);
 record("HTTP port bind", tcp.ok, tcp.ok ? `available on ${host}:${httpPort}` : tcp.error, true);
