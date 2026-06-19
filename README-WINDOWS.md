@@ -155,6 +155,14 @@ npm.cmd run build
 npm.cmd run package:windows
 ```
 
+서버가 실행 중인 상태에서 전체 대시보드 레이아웃 스크린샷 검수를 하려면 다음 명령을 사용합니다.
+
+```powershell
+npm.cmd run audit:layouts
+```
+
+캡처 결과와 contact sheet는 `layout-audit-shots/`에 생성됩니다.
+
 직접 PowerShell 스크립트를 실행할 수도 있습니다.
 
 ```powershell

@@ -18,6 +18,7 @@
     "typecheck": "cargo check -p forza-telemetry-server && npm run typecheck -w @forza-telemetry/dashboard",
     "validate:env": "scripts\\validate-env.cmd",
     "diagnose:latency": "node scripts/diagnose-latency.mjs",
+    "audit:layouts": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -ExecutionPolicy Bypass -File scripts\\audit-dashboard-layouts.ps1",
     "standalone": "scripts\\standalone.cmd",
     "smoke:standalone": "scripts\\smoke-standalone.cmd",
     "start": "target\\release\\sim-telemetry-server.exe",

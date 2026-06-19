@@ -181,6 +181,16 @@ WebSocket message
   -> dashboardRenderHz 상한 내에서 React state update
 ```
 
+## 대시보드 레이아웃 검수
+
+서버가 실행 중인 상태에서 모든 대시보드 레이아웃을 데스크톱/모바일 가로 화면으로 캡처하려면 다음 명령을 사용합니다.
+
+```powershell
+npm.cmd run audit:layouts
+```
+
+결과는 `layout-audit-shots/`에 저장되며, 전체 레이아웃을 한 번에 보는 `layout-audit-contact-sheet.png`도 함께 생성됩니다.
+
 ## Forza Horizon 6 설정
 
 Forza Horizon 6 설정에서 Data Out을 켭니다.
