@@ -672,7 +672,7 @@ mod tests {
         assert!(validate_public_config(&config).is_err());
 
         config.transport_mode = TRANSPORT_JSON.to_string();
-        config.dashboard_layout = "drift".to_string();
+        config.dashboard_layout = "unsupported-layout".to_string();
         assert!(validate_public_config(&config).is_err());
     }
 
