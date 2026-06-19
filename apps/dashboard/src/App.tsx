@@ -11,6 +11,11 @@ const METERS_PER_SECOND_SQUARED_PER_G = 9.80665;
 const DISPLAY_MAX_G = 2.5;
 const SHIFT_LIGHT_COUNT = 36;
 const SHIFT_LIGHT_INDEXES = Array.from({ length: SHIFT_LIGHT_COUNT }, (_, index) => index);
+const ROAD_CAR_GAUGE_TICK_COUNT = 17;
+const ROAD_CAR_GAUGE_TICKS = Array.from({ length: ROAD_CAR_GAUGE_TICK_COUNT }, (_, index) => index);
+const ROAD_CAR_GAUGE_TICK_ANGLES = ROAD_CAR_GAUGE_TICKS.map(
+  (index) => -125 + index * (250 / (ROAD_CAR_GAUGE_TICK_COUNT - 1))
+);
 const STEER_CENTER_DEADZONE = 0.01;
 
 type TirePosition = "front-left" | "front-right" | "rear-left" | "rear-right";
@@ -23,7 +28,7 @@ type RaceDashboardProps = {
   clientMetrics: TelemetryClientMetrics;
 };
 
-type DashboardLayout = "race" | "time-attack" | "engineer" | "mobile-race" | "minimal" | "gforce";
+type DashboardLayout = "race" | "time-attack" | "engineer" | "mobile-race" | "minimal" | "gforce" | "road-car";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -294,6 +299,10 @@ function selectedDashboardLayout(): DashboardLayout {
 
   if (layout === "gforce" || layout === "g-force" || layout === "gforce-focus") {
     return "gforce";
+  }
+
+  if (layout === "road-car" || layout === "roadcar" || layout === "cluster" || layout === "digital-cluster") {
+    return "road-car";
   }
 
   return "race";
@@ -1296,6 +1305,180 @@ function GForceFocusDashboard({
   );
 }
 
+function RoadCarStatusPill({
+  label,
+  value,
+  unit,
+  tone
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  tone?: "green" | "red" | "yellow" | "cyan";
+}) {
+  return (
+    <div className={`road-status-pill ${tone ? `road-status-${tone}` : ""}`}>
+      <span>{label}</span>
+      <strong>
+        {value}
+        {unit ? <em>{unit}</em> : null}
+      </strong>
+    </div>
+  );
+}
+
+function RoadCarGauge({
+  label,
+  value,
+  unit,
+  ratio,
+  secondary,
+  tone
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  ratio: number;
+  secondary: string;
+  tone: "cyan" | "yellow";
+}) {
+  const needleAngle = -125 + clamp(ratio, 0, 1) * 250;
+
+  return (
+    <section className={`road-gauge road-gauge-${tone}`}>
+      <div className="road-gauge-label">{label}</div>
+      <svg className="road-gauge-face" viewBox="0 0 240 240" role="img" aria-label={`${label} gauge`}>
+        <circle className="road-gauge-ring road-gauge-ring-outer" cx="120" cy="120" r="102" />
+        <circle className="road-gauge-ring" cx="120" cy="120" r="82" />
+        {ROAD_CAR_GAUGE_TICK_ANGLES.map((angle, index) => {
+          const major = index % 4 === 0 || index === ROAD_CAR_GAUGE_TICK_ANGLES.length - 1;
+          return (
+            <line
+              className={`road-gauge-tick ${major ? "road-gauge-tick-major" : ""}`}
+              key={angle}
+              transform={`rotate(${angle} 120 120)`}
+              x1="120"
+              x2="120"
+              y1={major ? "18" : "25"}
+              y2="38"
+            />
+          );
+        })}
+        <line className="road-gauge-needle" transform={`rotate(${needleAngle} 120 120)`} x1="120" x2="120" y1="120" y2="42" />
+        <circle className="road-gauge-hub" cx="120" cy="120" r="7" />
+      </svg>
+      <div className="road-gauge-readout">
+        <strong>{value}</strong>
+        <em>{unit}</em>
+      </div>
+      <div className="road-gauge-secondary">{secondary}</div>
+    </section>
+  );
+}
+
+function RoadCarDashboard({
+  snapshot,
+  connectionStatus,
+  renderHz,
+  clientMetrics
+}: RaceDashboardProps) {
+  const rpmRatio = getRpmRatio(snapshot);
+
+  if (!snapshot) {
+    return (
+      <WaitingDashboard
+        clientMetrics={clientMetrics}
+        connectionStatus={connectionStatus}
+        renderHz={renderHz}
+      />
+    );
+  }
+
+  const speedKmh = snapshot.vehicle.speedKmh;
+  const speedRatio = clamp((Number.isFinite(speedKmh) ? speedKmh : 0) / 300, 0, 1);
+  const rpmThousands = Number.isFinite(snapshot.vehicle.rpm) ? snapshot.vehicle.rpm / 1000 : undefined;
+  const race = shouldShowRaceInfo(snapshot) ? snapshot.race : undefined;
+  const lapLabel = race ? `${formatInteger(validLapNumber(race.lapNumber))}` : "--";
+  const throttle = snapshot.input.throttle;
+  const brake = snapshot.input.brake;
+  const steer = clamp(snapshot.input.steer ?? 0, -1, 1);
+  const tires = [
+    snapshot.tires?.frontLeftTemp,
+    snapshot.tires?.frontRightTemp,
+    snapshot.tires?.rearLeftTemp,
+    snapshot.tires?.rearRightTemp
+  ];
+  const validTires = tires.filter((value): value is number => value != null && Number.isFinite(value));
+  const hottestTire = validTires.length > 0 ? Math.max(...validTires) : undefined;
+
+  return (
+    <section className={`race-dashboard road-dashboard ${snapshot.connected ? "race-live" : "race-stale"}`}>
+      <header className="road-topbar">
+        <div className="road-brand">
+          <span>FH6</span>
+          <strong>ROAD CAR CLUSTER</strong>
+        </div>
+        <div className="road-connection">
+          <RoadCarStatusPill
+            label="Link"
+            tone={connectionStatus === "connected" && snapshot.connected ? "green" : "red"}
+            value={formatConnection(connectionStatus, snapshot)}
+          />
+          <RoadCarStatusPill label="RX" unit="Hz" tone="cyan" value={formatHz(clientMetrics.estimatedMessageHz)} />
+          <RoadCarStatusPill label="Age" unit="ms" tone="yellow" value={formatMilliseconds(clientMetrics.renderSnapshotAgeMs)} />
+        </div>
+      </header>
+
+      <main className="road-cluster">
+        <RoadCarGauge
+          label="Speed"
+          ratio={speedRatio}
+          secondary={`Gear ${gearLabel(snapshot.vehicle.gear)}`}
+          tone="cyan"
+          unit="km/h"
+          value={formatSpeedKmh(speedKmh)}
+        />
+
+        <section className="road-center">
+          <div className="road-mode-row">
+            <span>Mode</span>
+            <strong>SPORT</strong>
+          </div>
+          <div className="road-center-gear">{gearLabel(snapshot.vehicle.gear)}</div>
+          <div className="road-center-speed">
+            <strong>{formatSpeedKmh(speedKmh)}</strong>
+            <em>km/h</em>
+          </div>
+          <div className="road-center-grid">
+            <RoadCarStatusPill label="Lap" value={lapLabel} tone="cyan" />
+            <RoadCarStatusPill label="Best" value={race ? formatDuration(validRaceSeconds(race.bestLapSeconds)) : "--"} />
+            <RoadCarStatusPill label="Power" unit="kW" value={formatInteger(snapshot.vehicle.powerKw)} />
+            <RoadCarStatusPill label="Torque" unit="Nm" value={formatInteger(snapshot.vehicle.torqueNm)} />
+          </div>
+        </section>
+
+        <RoadCarGauge
+          label="RPM"
+          ratio={rpmRatio}
+          secondary={`Max ${formatInteger(snapshot.vehicle.maxRpm)}`}
+          tone="yellow"
+          unit="x1000"
+          value={formatNumber(rpmThousands, 1)}
+        />
+      </main>
+
+      <footer className="road-footer">
+        <RoadCarStatusPill label="Throttle" value={formatPercent(throttle)} tone="green" />
+        <RoadCarStatusPill label="Brake" value={formatPercent(brake)} tone="red" />
+        <RoadCarStatusPill label="Steer" value={`${Math.round(steer * 100)}%`} tone="cyan" />
+        <RoadCarStatusPill label="Tire" value={formatTemperatureC(hottestTire)} />
+        <RoadCarStatusPill label="Boost" value={formatNumber(snapshot.vehicle.boost, 2)} />
+        <RoadCarStatusPill label="Render" unit="Hz" value={String(renderHz)} />
+      </footer>
+    </section>
+  );
+}
+
 function DashboardApp() {
   const { snapshot, clientMetrics, connectionStatus, renderHz } = useTelemetry();
   const layout = selectedDashboardLayout();
@@ -1313,10 +1496,19 @@ function DashboardApp() {
                 ? "minimal-stage"
                 : layout === "gforce"
                   ? "gfocus-stage"
-                  : ""
+                  : layout === "road-car"
+                    ? "road-stage"
+                    : ""
       }`}
     >
-      {layout === "gforce" ? (
+      {layout === "road-car" ? (
+        <RoadCarDashboard
+          connectionStatus={connectionStatus}
+          clientMetrics={clientMetrics}
+          renderHz={renderHz}
+          snapshot={snapshot}
+        />
+      ) : layout === "gforce" ? (
         <GForceFocusDashboard
           connectionStatus={connectionStatus}
           clientMetrics={clientMetrics}
