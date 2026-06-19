@@ -30,8 +30,22 @@ const DASHBOARD_LAYOUT_LABELS: Record<ServerConfig["dashboardLayout"], string> =
   "road-car": "Road Car Cluster"
 };
 
+const DASHBOARD_LAYOUT_DESCRIPTIONS: Record<ServerConfig["dashboardLayout"], string> = {
+  race: "Default motorsport screen for speed, gear, tires, inputs, and G-force.",
+  "time-attack": "Lap-focused screen for current lap, delta, best lap, and key driving inputs.",
+  engineer: "Dense validation screen for packet, vehicle, tire, powertrain, and motion values.",
+  "mobile-race": "Compact landscape screen for phones with tires/race info, gear, speed, and G-force.",
+  minimal: "Low-distraction auxiliary display with large gear, speed, RPM, and warnings.",
+  gforce: "Load-transfer display centered on the G-force meter and acceleration values.",
+  "road-car": "Production-car inspired digital cluster with dual gauges and central gear/speed."
+};
+
 function dashboardLayoutLabel(layout: ServerConfig["dashboardLayout"]): string {
   return DASHBOARD_LAYOUT_LABELS[layout] ?? layout;
+}
+
+function dashboardLayoutDescription(layout: ServerConfig["dashboardLayout"]): string {
+  return DASHBOARD_LAYOUT_DESCRIPTIONS[layout] ?? layout;
 }
 
 function validateConfig(
@@ -194,6 +208,51 @@ function UrlBox({
         Open
       </button>
     </div>
+  );
+}
+
+function DashboardLayoutGallery({
+  currentLayout,
+  layouts,
+  dashboardUrl,
+  onSelect
+}: {
+  currentLayout: ServerConfig["dashboardLayout"];
+  layouts: ServerConfig["dashboardLayout"][];
+  dashboardUrl: string;
+  onSelect: (layout: ServerConfig["dashboardLayout"]) => void;
+}) {
+  const baseDashboardUrl = dashboardUrl || "/dashboard";
+
+  const previewUrl = (layout: ServerConfig["dashboardLayout"]) => {
+    const separator = baseDashboardUrl.includes("?") ? "&" : "?";
+    return `${baseDashboardUrl}${separator}layout=${layout}`;
+  };
+
+  return (
+    <section className="settings-layout-gallery" aria-label="Dashboard layout gallery">
+      {layouts.map((layout) => {
+        const selected = layout === currentLayout;
+        const url = previewUrl(layout);
+        return (
+          <article className={`settings-layout-card ${selected ? "layout-card-selected" : ""}`} key={layout}>
+            <div>
+              <span>{layout}</span>
+              <strong>{dashboardLayoutLabel(layout)}</strong>
+              <p>{dashboardLayoutDescription(layout)}</p>
+            </div>
+            <div className="settings-layout-actions">
+              <button type="button" onClick={() => onSelect(layout)} disabled={selected}>
+                {selected ? "Selected" : "Use"}
+              </button>
+              <button type="button" onClick={() => window.open(url, "_blank", "noopener,noreferrer")}>
+                Preview
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </section>
   );
 }
 
@@ -410,6 +469,13 @@ export function SettingsPage() {
                 {saving ? "Saving" : "Save"}
               </button>
             </div>
+
+            <DashboardLayoutGallery
+              currentLayout={form.dashboardLayout}
+              dashboardUrl={urls?.localDashboardUrl ?? "/dashboard"}
+              layouts={supportedDashboardLayouts}
+              onSelect={(layout) => updateField("dashboardLayout", layout)}
+            />
 
             <div className="settings-form-grid">
               <label>

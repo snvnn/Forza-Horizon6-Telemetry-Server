@@ -140,6 +140,8 @@ VITE_RENDER_HZ=60
 
 `DASHBOARD_LAYOUT`은 `/dashboard`의 기본 레이아웃입니다. 지원값은 `race`, `time-attack`, `engineer`, `mobile-race`, `minimal`, `gforce`, `road-car`입니다. URL에 `?layout=...`을 붙이면 저장된 기본값을 일시적으로 override할 수 있습니다.
 
+Settings 화면의 Dashboard Layout gallery에서 레이아웃을 고르고 `Preview`로 별도 탭에서 바로 확인할 수 있습니다.
+
 `DASHBOARD_RENDER_HZ`와 Settings 화면의 Dashboard Render Hz는 실행 중인 브라우저 렌더링 cap입니다. `VITE_RENDER_HZ`는 개발/빌드 fallback으로만 사용됩니다.
 
 `WEBSOCKET_SEND_TIMEOUT_MS`는 느린 클라이언트 송신을 끊는 시간입니다. 기본값은 50ms이고 Settings 화면에서 10-1000ms 범위로 조절할 수 있습니다.
