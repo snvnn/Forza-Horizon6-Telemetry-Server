@@ -8,8 +8,8 @@ you want to configure and start/stop the server without opening a separate
 `/settings` web page.
 
 The native GUI can edit and save `config.json`, configure HTTP/UDP ports,
-configure Broadcast Hz, Dashboard Render Hz, Transport Mode, WebSocket timeout,
-UDP receive buffer size, Mock Telemetry, and Debug Packet, then start/stop/restart
+configure Broadcast Hz, Dashboard Layout, Dashboard Render Hz, Transport Mode,
+WebSocket timeout, UDP receive buffer size, Mock Telemetry, and Debug Packet, then start/stop/restart
 the hidden `--server` mode without a console window.
 
 For command-line/server-only use, run `sim-telemetry-server.exe --server`.
@@ -72,6 +72,7 @@ http://192.168.0.12:3000/dashboard
 - HTTP Host / HTTP Port
 - Broadcast Hz
 - Transport Mode
+- Dashboard Layout
 - Dashboard Render Hz
 - WebSocket Send Timeout ms
 - Connection Timeout ms
@@ -84,7 +85,7 @@ http://192.168.0.12:3000/dashboard
 2. 환경 변수 또는 `.env`
 3. 내장 기본값
 
-Broadcast Hz, Transport Mode, Dashboard Render Hz, WebSocket Send Timeout ms, Connection Timeout은 저장 즉시 적용됩니다. Broadcast Hz는 `0`이면 uncapped 송출, `1-240`이면 해당 Hz 상한으로 동작합니다. Transport Mode가 `binary`이면 `/ws/telemetry.bin` 저지연 binary stream을 사용합니다. UDP Host, UDP Port, Mock Telemetry, Debug Packet, Game Adapter 변경은 Settings 화면에서 Telemetry Restart를 눌러 적용합니다. HTTP Host 또는 HTTP Port 변경은 앱 프로세스 재시작이 필요합니다.
+Broadcast Hz, Transport Mode, Dashboard Layout, Dashboard Render Hz, WebSocket Send Timeout ms, Connection Timeout은 저장 즉시 적용됩니다. Broadcast Hz는 `0`이면 uncapped 송출, `1-240`이면 해당 Hz 상한으로 동작합니다. Transport Mode가 `binary`이면 `/ws/telemetry.bin` 저지연 binary stream을 사용합니다. Dashboard Layout 지원값은 `race`, `time-attack`, `engineer`, `mobile-race`, `minimal`, `gforce`, `road-car`입니다. UDP Host, UDP Port, Mock Telemetry, Debug Packet, Game Adapter 변경은 Settings 화면에서 Telemetry Restart를 눌러 적용합니다. HTTP Host 또는 HTTP Port 변경은 앱 프로세스 재시작이 필요합니다.
 
 ## Forza Horizon 6 설정 예시
 
@@ -135,6 +136,7 @@ Data Out IP Port: 5400
   "udpPort": 5400,
   "broadcastHz": 60,
   "transportMode": "json",
+  "dashboardLayout": "race",
   "dashboardRenderHz": 60,
   "websocketSendTimeoutMs": 50,
   "connectionTimeoutMs": 2000,

@@ -7,6 +7,16 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 pub const SUPPORTED_GAME_ADAPTERS: &[&str] = &["forza-horizon-6"];
+pub const SUPPORTED_DASHBOARD_LAYOUTS: &[&str] = &[
+    "race",
+    "time-attack",
+    "engineer",
+    "mobile-race",
+    "minimal",
+    "gforce",
+    "road-car",
+];
+pub const DEFAULT_DASHBOARD_LAYOUT: &str = "race";
 pub const DEFAULT_BROADCAST_HZ: f64 = 60.0;
 pub const MAX_BROADCAST_HZ: f64 = 240.0;
 pub const DEFAULT_DASHBOARD_RENDER_HZ: u16 = 60;
@@ -28,6 +38,7 @@ pub struct AppConfig {
     pub broadcast_hz: f64,
     pub broadcast_interval_ms: f64,
     pub transport_mode: String,
+    pub dashboard_layout: String,
     pub dashboard_render_hz: u16,
     pub websocket_send_timeout_ms: u64,
     pub connection_timeout_ms: u64,
@@ -49,6 +60,7 @@ pub struct PublicConfig {
     pub udp_receive_buffer_bytes: usize,
     pub broadcast_hz: f64,
     pub transport_mode: String,
+    pub dashboard_layout: String,
     pub dashboard_render_hz: u16,
     pub websocket_send_timeout_ms: u64,
     pub connection_timeout_ms: u64,
@@ -67,6 +79,7 @@ struct PartialConfig {
     udp_receive_buffer_bytes: Option<usize>,
     broadcast_hz: Option<f64>,
     transport_mode: Option<String>,
+    dashboard_layout: Option<String>,
     dashboard_render_hz: Option<u16>,
     websocket_send_timeout_ms: Option<u64>,
     connection_timeout_ms: Option<u64>,
@@ -97,6 +110,7 @@ impl AppConfig {
             udp_receive_buffer_bytes: public.udp_receive_buffer_bytes,
             broadcast_hz: public.broadcast_hz,
             transport_mode: public.transport_mode,
+            dashboard_layout: public.dashboard_layout,
             dashboard_render_hz: public.dashboard_render_hz,
             websocket_send_timeout_ms: public.websocket_send_timeout_ms,
             connection_timeout_ms: public.connection_timeout_ms,
@@ -118,6 +132,7 @@ impl AppConfig {
             udp_receive_buffer_bytes: self.udp_receive_buffer_bytes,
             broadcast_hz: self.broadcast_hz,
             transport_mode: self.transport_mode.clone(),
+            dashboard_layout: self.dashboard_layout.clone(),
             dashboard_render_hz: self.dashboard_render_hz,
             websocket_send_timeout_ms: self.websocket_send_timeout_ms,
             connection_timeout_ms: self.connection_timeout_ms,
@@ -219,6 +234,13 @@ pub fn validate_public_config(config: &PublicConfig) -> Result<(), Vec<String>> 
         errors.push("transportMode must be 'json' or 'binary'".to_string());
     }
 
+    if !is_valid_dashboard_layout(&config.dashboard_layout) {
+        errors.push(format!(
+            "dashboardLayout must be one of: {}",
+            SUPPORTED_DASHBOARD_LAYOUTS.join(", ")
+        ));
+    }
+
     if config.dashboard_render_hz == 0 || config.dashboard_render_hz > MAX_DASHBOARD_RENDER_HZ {
         errors.push("dashboardRenderHz must be between 1 and 240".to_string());
     }
@@ -276,6 +298,7 @@ fn default_public_config() -> PublicConfig {
         udp_receive_buffer_bytes: 1_048_576,
         broadcast_hz: DEFAULT_BROADCAST_HZ,
         transport_mode: TRANSPORT_JSON.to_string(),
+        dashboard_layout: DEFAULT_DASHBOARD_LAYOUT.to_string(),
         dashboard_render_hz: DEFAULT_DASHBOARD_RENDER_HZ,
         websocket_send_timeout_ms: DEFAULT_WEBSOCKET_SEND_TIMEOUT_MS,
         connection_timeout_ms: 2000,
@@ -318,6 +341,14 @@ fn apply_env_config(config: &mut PublicConfig) {
             .as_deref(),
     ) {
         config.transport_mode = value;
+    }
+    if let Some(value) = parse_dashboard_layout(
+        env::var("DASHBOARD_LAYOUT")
+            .ok()
+            .or_else(|| env::var("DASHBOARD_PROFILE").ok())
+            .as_deref(),
+    ) {
+        config.dashboard_layout = value;
     }
     if let Some(value) = parse_render_hz(
         env::var("DASHBOARD_RENDER_HZ")
@@ -369,6 +400,9 @@ fn apply_partial_config(config: &mut PublicConfig, partial: PartialConfig) {
     }
     if let Some(value) = partial.transport_mode {
         config.transport_mode = value;
+    }
+    if let Some(value) = partial.dashboard_layout {
+        config.dashboard_layout = value;
     }
     if let Some(value) = partial.dashboard_render_hz {
         config.dashboard_render_hz = value;
@@ -526,6 +560,18 @@ fn is_valid_transport_mode(mode: &str) -> bool {
     matches!(mode, TRANSPORT_JSON | TRANSPORT_BINARY)
 }
 
+fn parse_dashboard_layout(value: Option<&str>) -> Option<String> {
+    value
+        .map(|raw| raw.trim().to_ascii_lowercase())
+        .filter(|layout| is_valid_dashboard_layout(layout))
+}
+
+fn is_valid_dashboard_layout(layout: &str) -> bool {
+    SUPPORTED_DASHBOARD_LAYOUTS
+        .iter()
+        .any(|supported| *supported == layout)
+}
+
 fn parse_render_hz(value: Option<&str>) -> Option<u16> {
     value
         .and_then(|raw| raw.trim().parse::<u16>().ok())
@@ -609,6 +655,7 @@ mod tests {
     fn validates_low_latency_config_ranges() {
         let mut config = default_public_config();
         config.transport_mode = TRANSPORT_BINARY.to_string();
+        config.dashboard_layout = "road-car".to_string();
         config.dashboard_render_hz = MAX_DASHBOARD_RENDER_HZ;
         config.websocket_send_timeout_ms = MAX_WEBSOCKET_SEND_TIMEOUT_MS;
         assert!(validate_public_config(&config).is_ok());
@@ -622,6 +669,10 @@ mod tests {
 
         config.websocket_send_timeout_ms = DEFAULT_WEBSOCKET_SEND_TIMEOUT_MS;
         config.transport_mode = "raw".to_string();
+        assert!(validate_public_config(&config).is_err());
+
+        config.transport_mode = TRANSPORT_JSON.to_string();
+        config.dashboard_layout = "drift".to_string();
         assert!(validate_public_config(&config).is_err());
     }
 

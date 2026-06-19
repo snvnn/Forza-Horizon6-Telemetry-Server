@@ -277,35 +277,50 @@ function SteerBar({ value }: { value: number | undefined }) {
   );
 }
 
-function selectedDashboardLayout(): DashboardLayout {
-  const params = new URLSearchParams(window.location.search);
-  const layout = params.get("layout") ?? params.get("dashboard");
+function normalizeDashboardLayout(layout: string | null | undefined): DashboardLayout | null {
+  if (!layout) {
+    return null;
+  }
 
-  if (layout === "time-attack" || layout === "timeattack") {
+  const normalized = layout.trim().toLowerCase();
+
+  if (normalized === "time-attack" || normalized === "timeattack") {
     return "time-attack";
   }
 
-  if (layout === "engineer" || layout === "telemetry" || layout === "telemetry-engineer") {
+  if (normalized === "engineer" || normalized === "telemetry" || normalized === "telemetry-engineer") {
     return "engineer";
   }
 
-  if (layout === "mobile" || layout === "mobile-race" || layout === "landscape-race") {
+  if (normalized === "mobile" || normalized === "mobile-race" || normalized === "landscape-race") {
     return "mobile-race";
   }
 
-  if (layout === "minimal" || layout === "minimal-hud" || layout === "hud") {
+  if (normalized === "minimal" || normalized === "minimal-hud" || normalized === "hud") {
     return "minimal";
   }
 
-  if (layout === "gforce" || layout === "g-force" || layout === "gforce-focus") {
+  if (normalized === "gforce" || normalized === "g-force" || normalized === "gforce-focus") {
     return "gforce";
   }
 
-  if (layout === "road-car" || layout === "roadcar" || layout === "cluster" || layout === "digital-cluster") {
+  if (normalized === "road-car" || normalized === "roadcar" || normalized === "cluster" || normalized === "digital-cluster") {
     return "road-car";
   }
 
-  return "race";
+  if (normalized === "race" || normalized === "gt" || normalized === "gt3") {
+    return "race";
+  }
+
+  return null;
+}
+
+function selectedDashboardLayout(configuredLayout: string | null | undefined): DashboardLayout {
+  const params = new URLSearchParams(window.location.search);
+  const urlLayout = normalizeDashboardLayout(params.get("layout") ?? params.get("dashboard"));
+  const configLayout = normalizeDashboardLayout(configuredLayout);
+
+  return urlLayout ?? configLayout ?? "race";
 }
 
 function MetricBox({
@@ -1480,8 +1495,8 @@ function RoadCarDashboard({
 }
 
 function DashboardApp() {
-  const { snapshot, clientMetrics, connectionStatus, renderHz } = useTelemetry();
-  const layout = selectedDashboardLayout();
+  const { snapshot, clientMetrics, connectionStatus, dashboardLayout, renderHz } = useTelemetry();
+  const layout = selectedDashboardLayout(dashboardLayout);
 
   return (
     <main

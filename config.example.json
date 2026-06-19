@@ -7,6 +7,7 @@
   "udpReceiveBufferBytes": 1048576,
   "broadcastHz": 60,
   "transportMode": "json",
+  "dashboardLayout": "race",
   "dashboardRenderHz": 60,
   "websocketSendTimeoutMs": 50,
   "connectionTimeoutMs": 2000,

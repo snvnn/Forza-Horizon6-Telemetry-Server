@@ -122,6 +122,7 @@ HTTP_PORT=3000
 HOST=0.0.0.0
 TELEMETRY_BROADCAST_HZ=60
 TRANSPORT_MODE=json
+DASHBOARD_LAYOUT=race
 DASHBOARD_RENDER_HZ=60
 WEBSOCKET_SEND_TIMEOUT_MS=50
 MOCK_TELEMETRY=false
@@ -136,6 +137,8 @@ VITE_RENDER_HZ=60
 `VITE_RENDER_HZ`는 React state update 빈도입니다. 브라우저는 WebSocket 메시지마다 `setState`를 호출하지 않고 최신값만 저장한 뒤, `1-240Hz` 범위에서 이 값에 맞춰 화면에 반영합니다.
 
 `TRANSPORT_MODE=json`은 기존 호환 모드이며 `/ws/telemetry`를 사용합니다. `TRANSPORT_MODE=binary`는 저지연 모드이며 `/ws/telemetry.bin`으로 80-byte normalized binary frame을 전송합니다. Binary v1은 speed/RPM/input/powertrain/tire/motion 같은 고속 주행 핵심 필드만 포함하고, race/lap 정보는 JSON 모드에 남아 있습니다.
+
+`DASHBOARD_LAYOUT`은 `/dashboard`의 기본 레이아웃입니다. 지원값은 `race`, `time-attack`, `engineer`, `mobile-race`, `minimal`, `gforce`, `road-car`입니다. URL에 `?layout=...`을 붙이면 저장된 기본값을 일시적으로 override할 수 있습니다.
 
 `DASHBOARD_RENDER_HZ`와 Settings 화면의 Dashboard Render Hz는 실행 중인 브라우저 렌더링 cap입니다. `VITE_RENDER_HZ`는 개발/빌드 fallback으로만 사용됩니다.
 
@@ -247,6 +250,7 @@ http://192.168.0.25:5173
   "broadcastHz": 60,
   "broadcastIntervalMs": 16.666666666666668,
   "transportMode": "json",
+  "dashboardLayout": "race",
   "dashboardRenderHz": 60,
   "websocketSendTimeoutMs": 50,
   "mockTelemetry": false,

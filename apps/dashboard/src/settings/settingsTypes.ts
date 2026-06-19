@@ -1,4 +1,12 @@
 export type TransportMode = "json" | "binary";
+export type DashboardLayout =
+  | "race"
+  | "time-attack"
+  | "engineer"
+  | "mobile-race"
+  | "minimal"
+  | "gforce"
+  | "road-car";
 
 export type ServerConfig = {
   gameAdapter: string;
@@ -9,6 +17,7 @@ export type ServerConfig = {
   udpReceiveBufferBytes: number;
   broadcastHz: number;
   transportMode: TransportMode;
+  dashboardLayout: DashboardLayout;
   dashboardRenderHz: number;
   websocketSendTimeoutMs: number;
   connectionTimeoutMs: number;
@@ -26,6 +35,7 @@ export type ConfigResponse = {
   ok: boolean;
   config: ServerConfig;
   supportedGameAdapters: string[];
+  supportedDashboardLayouts: DashboardLayout[];
   urls: DashboardUrls;
   warnings: string[];
 };
@@ -67,6 +77,7 @@ export type StatusResponse = {
   broadcastHz: number;
   broadcastIntervalMs: number;
   transportMode: TransportMode;
+  dashboardLayout: DashboardLayout;
   dashboardRenderHz: number;
   websocketSendTimeoutMs: number;
   broadcastStats?: {

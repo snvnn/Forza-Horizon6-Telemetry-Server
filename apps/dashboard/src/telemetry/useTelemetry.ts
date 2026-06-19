@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ConfigResponse } from "../settings/settingsTypes";
+import type { ConfigResponse, DashboardLayout } from "../settings/settingsTypes";
 import { TelemetryClient } from "./telemetryClient";
 import type {
   TelemetryClientMetrics,
@@ -15,6 +15,7 @@ function parseRenderHz(): number {
 export function useTelemetry() {
   const client = useMemo(() => new TelemetryClient(), []);
   const [renderHz, setRenderHz] = useState(parseRenderHz);
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>("race");
   const renderIntervalMs = 1000 / renderHz;
   const [snapshot, setSnapshot] = useState<TelemetrySnapshot | null>(null);
   const [clientMetrics, setClientMetrics] = useState<TelemetryClientMetrics>(() =>
@@ -39,6 +40,9 @@ export function useTelemetry() {
       client.setTransportMode(data.config.transportMode);
       setRenderHz((current) =>
         current === data.config.dashboardRenderHz ? current : data.config.dashboardRenderHz
+      );
+      setDashboardLayout((current) =>
+        current === data.config.dashboardLayout ? current : data.config.dashboardLayout
       );
     };
 
@@ -122,6 +126,7 @@ export function useTelemetry() {
     snapshot,
     clientMetrics,
     connectionStatus,
+    dashboardLayout,
     renderHz,
     renderIntervalMs
   };

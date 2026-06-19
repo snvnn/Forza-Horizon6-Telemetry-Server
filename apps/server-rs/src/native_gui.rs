@@ -11,7 +11,8 @@ mod windows_gui {
     };
 
     use crate::config::{
-        load_config, save_public_config, PublicConfig, TRANSPORT_BINARY, TRANSPORT_JSON,
+        load_config, save_public_config, PublicConfig, SUPPORTED_DASHBOARD_LAYOUTS,
+        TRANSPORT_BINARY, TRANSPORT_JSON,
     };
     use windows_sys::Win32::{
         Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM},
@@ -83,6 +84,7 @@ mod windows_gui {
     const ID_UDP_BUFFER: i32 = 1010;
     const ID_MOCK: i32 = 1011;
     const ID_DEBUG: i32 = 1012;
+    const ID_DASHBOARD_LAYOUT: i32 = 1013;
     const ID_SAVE: i32 = 2001;
     const ID_START: i32 = 2002;
     const ID_STOP: i32 = 2003;
@@ -99,6 +101,7 @@ mod windows_gui {
         broadcast_hz: HWND,
         render_hz: HWND,
         transport: HWND,
+        dashboard_layout: HWND,
         websocket_timeout: HWND,
         connection_timeout: HWND,
         udp_buffer: HWND,
@@ -407,17 +410,24 @@ mod windows_gui {
             370,
         );
         let udp_buffer = labeled_edit(hwnd, instance, "UDP Buffer bytes", ID_UDP_BUFFER, 284, 370);
+        let dashboard_layout =
+            labeled_combo(hwnd, instance, "Dashboard Layout", ID_DASHBOARD_LAYOUT, 24, 420);
         state.controls.broadcast_hz = broadcast_hz.control;
         state.controls.render_hz = render_hz.control;
         state.controls.transport = transport.control;
+        state.controls.dashboard_layout = dashboard_layout.control;
         state.controls.websocket_timeout = websocket_timeout.control;
         state.controls.connection_timeout = connection_timeout.control;
         state.controls.udp_buffer = udp_buffer.control;
         add_combo_item(state.controls.transport, "json");
         add_combo_item(state.controls.transport, "binary");
+        for layout in SUPPORTED_DASHBOARD_LAYOUTS {
+            add_combo_item(state.controls.dashboard_layout, layout);
+        }
         mark_field_label(state, &broadcast_hz);
         mark_field_label(state, &render_hz);
         mark_field_label(state, &transport);
+        mark_field_label(state, &dashboard_layout);
         mark_field_label(state, &websocket_timeout);
         mark_field_label(state, &connection_timeout);
         mark_field_label(state, &udp_buffer);
@@ -502,6 +512,11 @@ mod windows_gui {
             0
         };
         SendMessageW(state.controls.transport, CB_SETCURSEL, transport_index, 0);
+        let layout_index = SUPPORTED_DASHBOARD_LAYOUTS
+            .iter()
+            .position(|layout| *layout == config.dashboard_layout)
+            .unwrap_or(0);
+        SendMessageW(state.controls.dashboard_layout, CB_SETCURSEL, layout_index, 0);
         set_checked(state.controls.mock, config.mock_telemetry);
         set_checked(state.controls.debug, config.debug_packet);
     }
@@ -522,6 +537,7 @@ mod windows_gui {
             udp_receive_buffer_bytes: parse_usize("UDP Buffer bytes", state.controls.udp_buffer)?,
             broadcast_hz: parse_f64("Broadcast Hz", state.controls.broadcast_hz)?,
             transport_mode: selected_transport(state.controls.transport),
+            dashboard_layout: selected_dashboard_layout(state.controls.dashboard_layout),
             dashboard_render_hz: parse_u16("Dashboard Render Hz", state.controls.render_hz)?,
             websocket_send_timeout_ms: parse_u64(
                 "WebSocket Timeout ms",
@@ -1006,6 +1022,14 @@ mod windows_gui {
         } else {
             TRANSPORT_JSON.to_string()
         }
+    }
+
+    unsafe fn selected_dashboard_layout(hwnd: HWND) -> String {
+        let index = SendMessageW(hwnd, CB_GETCURSEL, 0, 0) as usize;
+        SUPPORTED_DASHBOARD_LAYOUTS
+            .get(index)
+            .unwrap_or(&"race")
+            .to_string()
     }
 
     unsafe fn set_checked(hwnd: HWND, checked: bool) {

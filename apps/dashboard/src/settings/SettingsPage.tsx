@@ -20,7 +20,25 @@ function isReservedForzaPort(value: number): boolean {
   return value >= 5200 && value <= 5300;
 }
 
-function validateConfig(config: ServerConfig, supportedAdapters: string[]): string[] {
+const DASHBOARD_LAYOUT_LABELS: Record<ServerConfig["dashboardLayout"], string> = {
+  race: "GT / Race Dash",
+  "time-attack": "Time Attack",
+  engineer: "Telemetry Engineer",
+  "mobile-race": "Mobile Landscape Race",
+  minimal: "Minimal HUD",
+  gforce: "G-Force Focus",
+  "road-car": "Road Car Cluster"
+};
+
+function dashboardLayoutLabel(layout: ServerConfig["dashboardLayout"]): string {
+  return DASHBOARD_LAYOUT_LABELS[layout] ?? layout;
+}
+
+function validateConfig(
+  config: ServerConfig,
+  supportedAdapters: string[],
+  supportedDashboardLayouts: string[]
+): string[] {
   const errors: string[] = [];
 
   if (!supportedAdapters.includes(config.gameAdapter)) {
@@ -50,6 +68,9 @@ function validateConfig(config: ServerConfig, supportedAdapters: string[]): stri
   }
   if (config.transportMode !== "json" && config.transportMode !== "binary") {
     errors.push("Transport Mode must be JSON or Binary.");
+  }
+  if (!supportedDashboardLayouts.includes(config.dashboardLayout)) {
+    errors.push("Dashboard Layout is not supported.");
   }
   if (
     !Number.isInteger(config.dashboardRenderHz) ||
@@ -186,6 +207,7 @@ function StatusGrid({ status }: { status: StatusResponse | null }) {
     ["WebSocket clients", String(status?.websocketClients ?? 0)],
     ["Broadcast", formatBroadcastSetting(status?.broadcastHz)],
     ["Transport", status?.transportMode === "binary" ? "Binary low latency" : "JSON compatible"],
+    ["Dashboard layout", status?.dashboardLayout ? dashboardLayoutLabel(status.dashboardLayout) : "--"],
     ["Dashboard render", `${status?.dashboardRenderHz ?? "--"} Hz`],
     ["Broadcast actual", `${formatOptionalNumber(status?.broadcastStats?.estimatedBroadcastHz, 1)} Hz`],
     ["Broadcast requests", String(status?.broadcastStats?.broadcastRequestCount ?? 0)],
@@ -236,6 +258,9 @@ export function SettingsPage() {
   const [form, setForm] = useState<ServerConfig | null>(null);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [supportedAdapters, setSupportedAdapters] = useState<string[]>(["forza-horizon-6"]);
+  const [supportedDashboardLayouts, setSupportedDashboardLayouts] = useState<ServerConfig["dashboardLayout"][]>([
+    "race"
+  ]);
   const [urls, setUrls] = useState<DashboardUrls | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [saving, setSaving] = useState(false);
@@ -251,6 +276,7 @@ export function SettingsPage() {
     const response = await readJson<ConfigResponse>("/api/config");
     setForm(response.config);
     setSupportedAdapters(response.supportedGameAdapters);
+    setSupportedDashboardLayouts(response.supportedDashboardLayouts);
     setUrls(response.urls);
   }, []);
 
@@ -266,8 +292,8 @@ export function SettingsPage() {
   }, [refreshConfig, refreshStatus]);
 
   const validationErrors = useMemo(
-    () => (form ? validateConfig(form, supportedAdapters) : []),
-    [form, supportedAdapters]
+    () => (form ? validateConfig(form, supportedAdapters, supportedDashboardLayouts) : []),
+    [form, supportedAdapters, supportedDashboardLayouts]
   );
 
   const warnings = useMemo(() => {
@@ -317,7 +343,7 @@ export function SettingsPage() {
         : "";
       setNotice({
         tone: response.requiresTelemetryRestart || response.requiresAppRestart ? "warn" : "ok",
-        text: `Config saved. Broadcast, transport, dashboard render, and WebSocket timeout changes apply immediately.${restartText}${appRestartText}`
+        text: `Config saved. Broadcast, transport, dashboard layout, dashboard render, and WebSocket timeout changes apply immediately.${restartText}${appRestartText}`
       });
       await refreshStatus();
     } catch (error) {
@@ -412,6 +438,23 @@ export function SettingsPage() {
                   <option value="binary">Binary low latency</option>
                 </select>
                 <small>Binary uses /ws/telemetry.bin and omits race/lap fields in v1.</small>
+              </label>
+
+              <label>
+                <span>Dashboard Layout</span>
+                <select
+                  value={form.dashboardLayout}
+                  onChange={(event) =>
+                    updateField("dashboardLayout", event.target.value as ServerConfig["dashboardLayout"])
+                  }
+                >
+                  {supportedDashboardLayouts.map((layout) => (
+                    <option key={layout} value={layout}>
+                      {dashboardLayoutLabel(layout)}
+                    </option>
+                  ))}
+                </select>
+                <small>Saved layout applies to /dashboard. URL query layout=... still overrides it temporarily.</small>
               </label>
 
               <label>

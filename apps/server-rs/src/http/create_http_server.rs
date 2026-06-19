@@ -15,7 +15,8 @@ use tower_http::services::{ServeDir, ServeFile};
 use crate::{
     config::{
         local_dashboard_url, local_settings_url, network_dashboard_url, save_public_config,
-        validate_public_config, AppConfig, PublicConfig, SUPPORTED_GAME_ADAPTERS,
+        validate_public_config, AppConfig, PublicConfig, SUPPORTED_DASHBOARD_LAYOUTS,
+        SUPPORTED_GAME_ADAPTERS,
     },
     telemetry::{
         telemetry_broadcaster::TelemetryBroadcaster,
@@ -157,6 +158,7 @@ async fn api_status(State(state): State<AppState>) -> impl IntoResponse {
         "broadcastHz": config.broadcast_hz,
         "broadcastIntervalMs": config.broadcast_interval_ms,
         "transportMode": config.transport_mode,
+        "dashboardLayout": config.dashboard_layout,
         "dashboardRenderHz": config.dashboard_render_hz,
         "websocketSendTimeoutMs": config.websocket_send_timeout_ms,
         "broadcastStats": broadcast_stats,
@@ -187,6 +189,7 @@ async fn api_config(State(state): State<AppState>) -> impl IntoResponse {
         "ok": true,
         "config": config.to_public(),
         "supportedGameAdapters": SUPPORTED_GAME_ADAPTERS,
+        "supportedDashboardLayouts": SUPPORTED_DASHBOARD_LAYOUTS,
         "urls": dashboard_urls(&config),
         "warnings": config_warnings(&config.to_public())
     }))
@@ -351,6 +354,7 @@ fn print_startup_info(config: &AppConfig, http_listening_address: &str) {
     println!("  Listening on {http_listening_address}");
     println!();
     println!("Dashboard:");
+    println!("  Layout:   {}", config.dashboard_layout);
     println!("  Local:    {}", local_dashboard_url(config));
     println!("  Settings: {}", local_settings_url(config));
     if let Some(network_url) = network_dashboard_url(config) {
