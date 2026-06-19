@@ -211,6 +211,60 @@ function UrlBox({
   );
 }
 
+function DashboardLayoutPreview({ layout }: { layout: ServerConfig["dashboardLayout"] }) {
+  return (
+    <div className={`settings-layout-preview preview-${layout}`} aria-hidden="true">
+      {layout === "race" ? (
+        <>
+          <span className="preview-strip" />
+          <span className="preview-stack preview-left" />
+          <span className="preview-hero preview-center" />
+          <span className="preview-ring preview-right" />
+        </>
+      ) : layout === "time-attack" ? (
+        <>
+          <span className="preview-strip" />
+          <span className="preview-wide preview-top" />
+          <span className="preview-wide preview-mid" />
+          <span className="preview-row preview-bottom" />
+        </>
+      ) : layout === "engineer" ? (
+        <>
+          <span className="preview-grid preview-grid-a" />
+          <span className="preview-grid preview-grid-b" />
+          <span className="preview-grid preview-grid-c" />
+          <span className="preview-stack preview-right" />
+        </>
+      ) : layout === "mobile-race" ? (
+        <>
+          <span className="preview-stack preview-left" />
+          <span className="preview-hero preview-center" />
+          <span className="preview-ring preview-right" />
+          <span className="preview-row preview-bottom" />
+        </>
+      ) : layout === "minimal" ? (
+        <>
+          <span className="preview-hero preview-left" />
+          <span className="preview-hero preview-center-wide" />
+          <span className="preview-row preview-bottom" />
+        </>
+      ) : layout === "gforce" ? (
+        <>
+          <span className="preview-stack preview-left" />
+          <span className="preview-ring preview-center-ring" />
+          <span className="preview-stack preview-right" />
+        </>
+      ) : (
+        <>
+          <span className="preview-gauge preview-left-gauge" />
+          <span className="preview-hero preview-center" />
+          <span className="preview-gauge preview-right-gauge" />
+        </>
+      )}
+    </div>
+  );
+}
+
 function DashboardLayoutGallery({
   currentLayout,
   layouts,
@@ -236,6 +290,7 @@ function DashboardLayoutGallery({
         const url = previewUrl(layout);
         return (
           <article className={`settings-layout-card ${selected ? "layout-card-selected" : ""}`} key={layout}>
+            <DashboardLayoutPreview layout={layout} />
             <div>
               <span>{layout}</span>
               <strong>{dashboardLayoutLabel(layout)}</strong>
