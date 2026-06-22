@@ -5508,3 +5508,126 @@ h1 {
     font-size: 0.38rem;
   }
 }
+
+@media (orientation: portrait) and (max-width: 520px) {
+  .road-stage {
+    width: 100vw;
+    height: 100svh;
+    min-height: 100svh;
+    overflow: hidden;
+  }
+
+  .road-dashboard {
+    padding: 6px 8px;
+  }
+
+  .road-topbar {
+    min-height: 42px;
+    gap: 6px;
+  }
+
+  .road-brand span {
+    display: none;
+  }
+
+  .road-brand strong {
+    font-size: 0.96rem;
+  }
+
+  .road-connection {
+    display: none;
+  }
+
+  .road-cluster {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(130px, 1fr) auto minmax(130px, 1fr);
+    overflow: hidden;
+  }
+
+  .road-gauge {
+    padding: 5px 4px 4px;
+  }
+
+  .road-gauge-cyan,
+  .road-gauge-yellow {
+    border-right: 0;
+    border-left: 0;
+  }
+
+  .road-gauge-cyan {
+    border-bottom: 1px solid #26313c;
+  }
+
+  .road-gauge-yellow {
+    border-top: 1px solid #26313c;
+  }
+
+  .road-gauge-label,
+  .road-gauge-secondary,
+  .road-status-pill span,
+  .road-mode-row span {
+    font-size: 0.5rem;
+  }
+
+  .road-gauge-face {
+    width: min(50vw, 21vh, 178px);
+  }
+
+  .road-gauge-readout {
+    display: none;
+  }
+
+  .road-gauge-secondary {
+    padding-top: 3px;
+  }
+
+  .road-center {
+    grid-template-rows: auto auto auto;
+    padding: 7px 6px;
+  }
+
+  .road-mode-row {
+    gap: 5px;
+    padding-bottom: 4px;
+  }
+
+  .road-mode-row strong {
+    font-size: 0.58rem;
+  }
+
+  .road-center-gear {
+    align-self: center;
+    font-size: clamp(4.4rem, 23vw, 6rem);
+  }
+
+  .road-center-speed strong {
+    font-size: clamp(2.1rem, 15vw, 3.8rem);
+  }
+
+  .road-center-speed em {
+    font-size: 0.5rem;
+  }
+
+  .road-center-grid {
+    display: none;
+  }
+
+  .road-footer {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .road-status-pill {
+    min-height: 30px;
+    padding: 4px 5px;
+  }
+
+  .road-status-pill strong {
+    margin-top: 2px;
+    font-size: 0.66rem;
+  }
+
+  .road-status-pill em {
+    margin-left: 2px;
+    font-size: 0.4rem;
+  }
+}

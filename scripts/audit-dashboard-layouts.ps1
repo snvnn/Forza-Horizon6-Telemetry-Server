@@ -20,7 +20,8 @@ $layouts = @(
 
 $viewports = @(
   @{ Name = "desktop"; Width = 1366; Height = 768 },
-  @{ Name = "mobile-landscape"; Width = 844; Height = 390 }
+  @{ Name = "mobile-landscape"; Width = 844; Height = 390 },
+  @{ Name = "phone-portrait"; Width = 390; Height = 844 }
 )
 
 function Get-DashboardUrl {
