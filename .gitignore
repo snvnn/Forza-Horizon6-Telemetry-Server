@@ -9,5 +9,5 @@ release/
 *.log
 gforce-*.png
 race-dashboard-*.png
-layout-audit-shots/
+layout-audit-shots*/
 local-docs/

@@ -2,7 +2,8 @@ param(
   [string]$BaseDashboardUrl = "http://127.0.0.1:3000/dashboard",
   [string]$OutputDir = "layout-audit-shots",
   [string]$EdgePath = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-  [int]$VirtualTimeBudgetMs = 5000
+  [int]$VirtualTimeBudgetMs = 5000,
+  [switch]$RequireTelemetry
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,6 +33,54 @@ function Get-DashboardUrl {
   return "${BaseUrl}${separator}layout=${Layout}"
 }
 
+function Get-StatusUrl {
+  param(
+    [string]$BaseUrl
+  )
+
+  try {
+    $uri = [System.Uri]$BaseUrl
+    return "{0}://{1}/api/status" -f $uri.Scheme, $uri.Authority
+  } catch {
+    return $null
+  }
+}
+
+function Test-TelemetryStatus {
+  param(
+    [string]$BaseUrl,
+    [switch]$RequireTelemetry
+  )
+
+  $statusUrl = Get-StatusUrl -BaseUrl $BaseUrl
+  if (-not $statusUrl) {
+    Write-Warning "Could not derive /api/status URL from '$BaseUrl'."
+    return
+  }
+
+  try {
+    $status = Invoke-RestMethod -UseBasicParsing -Uri $statusUrl -TimeoutSec 3
+  } catch {
+    $message = "Failed to read telemetry status from '$statusUrl': $($_.Exception.Message)"
+    if ($RequireTelemetry) {
+      throw $message
+    }
+    Write-Warning $message
+    return
+  }
+
+  if ($status.hasTelemetry -eq $true) {
+    Write-Output "Telemetry status: ready ($($status.receivedPacketCount) packets, mock=$($status.mockTelemetry))."
+    return
+  }
+
+  $message = "Telemetry status: no snapshot yet. Screenshots may show the waiting state."
+  if ($RequireTelemetry) {
+    throw $message
+  }
+  Write-Warning $message
+}
+
 function Draw-ImageFit {
   param(
     [System.Drawing.Graphics]$Graphics,
@@ -58,6 +107,8 @@ function Draw-ImageFit {
 if (-not (Test-Path -LiteralPath $EdgePath)) {
   throw "Microsoft Edge was not found at '$EdgePath'. Pass -EdgePath to override."
 }
+
+Test-TelemetryStatus -BaseUrl $BaseDashboardUrl -RequireTelemetry:$RequireTelemetry
 
 $outputRoot = if ([System.IO.Path]::IsPathRooted($OutputDir)) {
   $OutputDir
