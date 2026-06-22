@@ -4559,6 +4559,167 @@ h1 {
   }
 }
 
+@media (orientation: portrait) and (max-width: 520px) {
+  .mobile-race-dashboard {
+    padding: 6px 8px;
+  }
+
+  .mobile-race-topbar {
+    min-height: 40px;
+    padding: 2px 0 4px;
+  }
+
+  .mobile-race-title span {
+    display: none;
+  }
+
+  .mobile-race-title strong {
+    font-size: 1.02rem;
+  }
+
+  .mobile-race-status {
+    grid-auto-columns: minmax(60px, auto);
+  }
+
+  .mobile-race-status .mobile-race-stat {
+    min-height: 28px;
+    padding: 3px 5px;
+  }
+
+  .mobile-race-status .mobile-race-stat:nth-child(n + 2) {
+    display: none;
+  }
+
+  .mobile-race-dashboard .race-shift-rail {
+    min-height: 13px;
+    margin: 0;
+    padding: 2px 0;
+  }
+
+  .mobile-race-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    overflow: hidden;
+  }
+
+  .mobile-race-center {
+    order: -1;
+    grid-template-columns: minmax(82px, 0.6fr) minmax(0, 1fr);
+    grid-template-rows: minmax(76px, auto) minmax(56px, auto);
+    min-height: 156px;
+    padding: 5px 0;
+    border-bottom: 1px solid #26313c;
+  }
+
+  .mobile-race-left,
+  .mobile-race-right {
+    grid-template-rows: auto auto;
+    padding: 0;
+    border-right: 0;
+    border-left: 0;
+  }
+
+  .mobile-race-panel {
+    gap: 3px;
+    padding: 4px 0;
+  }
+
+  .mobile-race-panel h2,
+  .mobile-race-stat span,
+  .mobile-race-gear span,
+  .mobile-race-speed span,
+  .mobile-race-rpm span,
+  .mobile-race-tire-cell span {
+    font-size: 0.46rem;
+  }
+
+  .mobile-race-panel h2 {
+    padding-bottom: 2px;
+  }
+
+  .mobile-race-gear,
+  .mobile-race-speed,
+  .mobile-race-rpm {
+    padding: 3px 7px;
+  }
+
+  .mobile-race-gear strong {
+    font-size: clamp(4.4rem, 24vw, 6.1rem);
+  }
+
+  .mobile-race-speed strong {
+    font-size: clamp(3rem, 17vw, 4.4rem);
+  }
+
+  .mobile-race-speed em {
+    font-size: 0.5rem;
+  }
+
+  .mobile-race-rpm strong {
+    font-size: clamp(1.7rem, 9vw, 2.5rem);
+  }
+
+  .mobile-race-tire-cell {
+    min-height: 58px;
+    padding: 4px 5px;
+  }
+
+  .mobile-race-tire-cell strong {
+    font-size: 0.78rem;
+  }
+
+  .mobile-race-tire-shape {
+    width: 14px;
+    height: 34px;
+    border-radius: 5px;
+  }
+
+  .mobile-race-input-panel .race-input-row {
+    grid-template-columns: 26px minmax(0, 1fr) 30px;
+    gap: 4px;
+    min-height: 18px;
+  }
+
+  .mobile-race-gforce {
+    grid-template-columns: minmax(100px, 0.62fr) minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .mobile-race-gforce svg {
+    width: min(100%, 112px);
+  }
+
+  .mobile-race-stat {
+    min-height: 27px;
+    padding: 3px 5px;
+  }
+
+  .mobile-race-stat strong {
+    margin-top: 1px;
+    font-size: 0.64rem;
+  }
+
+  .mobile-race-stat em {
+    margin-left: 2px;
+    font-size: 0.38rem;
+  }
+
+  .mobile-race-power {
+    padding-top: 4px;
+  }
+
+  .mobile-race-power .mobile-race-stat,
+  .mobile-race-gforce-readouts .mobile-race-stat {
+    min-height: 24px;
+    padding: 2px 4px;
+  }
+
+  .mobile-race-power .mobile-race-stat strong,
+  .mobile-race-gforce-readouts .mobile-race-stat strong {
+    font-size: 0.58rem;
+  }
+}
+
 .minimal-dashboard {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 0;
