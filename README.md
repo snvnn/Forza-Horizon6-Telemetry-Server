@@ -138,7 +138,7 @@ VITE_RENDER_HZ=60
 
 `TRANSPORT_MODE=json`은 기존 호환 모드이며 `/ws/telemetry`를 사용합니다. `TRANSPORT_MODE=binary`는 저지연 모드이며 `/ws/telemetry.bin`으로 80-byte normalized binary frame을 전송합니다. Binary v1은 speed/RPM/input/powertrain/tire/motion 같은 고속 주행 핵심 필드만 포함하고, race/lap 정보는 JSON 모드에 남아 있습니다.
 
-`DASHBOARD_LAYOUT`은 `/dashboard`의 기본 레이아웃입니다. 지원값은 `race`, `time-attack`, `engineer`, `mobile-race`, `minimal`, `gforce`, `road-car`입니다. URL에 `?layout=...`을 붙이면 저장된 기본값을 일시적으로 override할 수 있습니다.
+`DASHBOARD_LAYOUT`은 `/dashboard`의 기본 레이아웃입니다. 지원값은 `race`, `time-attack`, `engineer`, `mobile-race`, `minimal`, `gforce`입니다. URL에 `?layout=...`을 붙이면 저장된 기본값을 일시적으로 override할 수 있습니다.
 
 Settings 화면의 Dashboard Layout gallery에서 레이아웃을 고르고 `Preview`로 별도 탭에서 바로 확인할 수 있습니다.
 

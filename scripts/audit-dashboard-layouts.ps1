@@ -14,8 +14,7 @@ $layouts = @(
   "engineer",
   "mobile-race",
   "minimal",
-  "gforce",
-  "road-car"
+  "gforce"
 )
 
 $viewports = @(

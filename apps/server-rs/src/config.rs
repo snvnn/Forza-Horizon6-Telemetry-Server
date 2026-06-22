@@ -14,7 +14,6 @@ pub const SUPPORTED_DASHBOARD_LAYOUTS: &[&str] = &[
     "mobile-race",
     "minimal",
     "gforce",
-    "road-car",
 ];
 pub const DEFAULT_DASHBOARD_LAYOUT: &str = "race";
 pub const DEFAULT_BROADCAST_HZ: f64 = 60.0;
@@ -655,7 +654,7 @@ mod tests {
     fn validates_low_latency_config_ranges() {
         let mut config = default_public_config();
         config.transport_mode = TRANSPORT_BINARY.to_string();
-        config.dashboard_layout = "road-car".to_string();
+        config.dashboard_layout = "gforce".to_string();
         config.dashboard_render_hz = MAX_DASHBOARD_RENDER_HZ;
         config.websocket_send_timeout_ms = MAX_WEBSOCKET_SEND_TIMEOUT_MS;
         assert!(validate_public_config(&config).is_ok());

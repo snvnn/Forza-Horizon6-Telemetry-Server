@@ -5,8 +5,7 @@ export type DashboardLayout =
   | "engineer"
   | "mobile-race"
   | "minimal"
-  | "gforce"
-  | "road-car";
+  | "gforce";
 
 export type ServerConfig = {
   gameAdapter: string;

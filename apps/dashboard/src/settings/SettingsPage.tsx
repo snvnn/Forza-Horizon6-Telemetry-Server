@@ -26,8 +26,7 @@ const DASHBOARD_LAYOUT_LABELS: Record<ServerConfig["dashboardLayout"], string> =
   engineer: "Telemetry Engineer",
   "mobile-race": "Mobile Landscape Race",
   minimal: "Minimal HUD",
-  gforce: "G-Force Focus",
-  "road-car": "Road Car Cluster"
+  gforce: "G-Force Focus"
 };
 
 const DASHBOARD_LAYOUT_DESCRIPTIONS: Record<ServerConfig["dashboardLayout"], string> = {
@@ -36,8 +35,7 @@ const DASHBOARD_LAYOUT_DESCRIPTIONS: Record<ServerConfig["dashboardLayout"], str
   engineer: "Dense validation screen for packet, vehicle, tire, powertrain, and motion values.",
   "mobile-race": "Compact landscape screen for phones with tires/race info, gear, speed, and G-force.",
   minimal: "Low-distraction auxiliary display with large gear, speed, RPM, and warnings.",
-  gforce: "Load-transfer display centered on the G-force meter and acceleration values.",
-  "road-car": "Production-car inspired digital cluster with dual gauges and central gear/speed."
+  gforce: "Load-transfer display centered on the G-force meter and acceleration values."
 };
 
 function dashboardLayoutLabel(layout: ServerConfig["dashboardLayout"]): string {
@@ -255,11 +253,7 @@ function DashboardLayoutPreview({ layout }: { layout: ServerConfig["dashboardLay
           <span className="preview-stack preview-right" />
         </>
       ) : (
-        <>
-          <span className="preview-gauge preview-left-gauge" />
-          <span className="preview-hero preview-center" />
-          <span className="preview-gauge preview-right-gauge" />
-        </>
+        null
       )}
     </div>
   );
