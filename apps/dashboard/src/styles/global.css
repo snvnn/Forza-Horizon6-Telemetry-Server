@@ -2942,6 +2942,149 @@ h1 {
   }
 }
 
+@media (max-width: 520px) and (orientation: portrait) {
+  .dashboard-stage.race-stage {
+    height: 100svh;
+    min-height: 100svh;
+    overflow: hidden;
+  }
+
+  .race-dashboard {
+    height: 100svh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .race-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(174px, 0.34fr) minmax(0, 0.66fr);
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .race-layout > * + * {
+    border-top: 0;
+    border-left: 0;
+  }
+
+  .race-column,
+  .race-column:first-child,
+  .race-column:last-child,
+  .race-center-cluster {
+    padding-right: 0;
+    padding-left: 0;
+    overflow: hidden;
+  }
+
+  .race-column:first-child {
+    grid-column: 1;
+    grid-row: 2;
+    padding-right: 4px;
+  }
+
+  .race-column:last-child {
+    grid-column: 2;
+    grid-row: 2;
+    padding-left: 4px;
+    border-left: 1px solid #26313c;
+  }
+
+  .race-center-cluster {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    order: 0;
+    min-height: 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #26313c;
+  }
+
+  .race-center-main {
+    grid-template-columns: minmax(86px, 0.38fr) minmax(0, 0.62fr);
+    grid-template-rows: 1fr;
+  }
+
+  .race-gear-block {
+    border-right: 1px solid #26313c;
+    border-bottom: 0;
+  }
+
+  .race-gear-block strong {
+    font-size: clamp(4.4rem, 20vw, 5.6rem);
+  }
+
+  .race-speed-block {
+    padding: 20px 4px 7px;
+  }
+
+  .race-speed-block strong {
+    font-size: clamp(2.55rem, 13vw, 3.25rem);
+  }
+
+  .race-rpm-number {
+    min-height: 27px;
+  }
+
+  .race-panel {
+    padding: 4px 0;
+  }
+
+  .race-panel h2 {
+    padding-bottom: 2px;
+  }
+
+  .race-input-row {
+    min-height: 19px;
+    padding: 2px 0;
+  }
+
+  .race-tire-map {
+    grid-template-rows: repeat(2, minmax(50px, 1fr));
+    gap: 6px 10px;
+    min-height: 128px;
+  }
+
+  .race-tire-shape {
+    width: 22px;
+    height: 52px;
+    border-radius: 7px;
+  }
+
+  .race-tire-temperature {
+    font-size: 0.62rem;
+  }
+
+  .race-gforce {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .race-gforce-meter {
+    min-height: 112px;
+  }
+
+  .race-gforce-meter svg {
+    width: min(100%, 108px);
+  }
+
+  .race-gforce-values {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .race-gforce-values .race-metric,
+  .race-power-grid .race-metric {
+    min-height: 25px;
+  }
+
+  .race-power-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .race-motion-row .race-motion-cell {
+    padding: 3px 2px;
+  }
+}
+
 @media (orientation: landscape) and (max-height: 520px) and (max-width: 950px) {
   .dashboard-stage.race-stage {
     height: 100svh;
