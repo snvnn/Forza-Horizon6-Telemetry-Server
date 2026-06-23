@@ -118,6 +118,11 @@ $outputRoot = if ([System.IO.Path]::IsPathRooted($OutputDir)) {
 
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 
+# Remove previous PNG captures before taking new screenshots so retired layouts
+# cannot linger in the audit folder and confuse visual review.
+Get-ChildItem -LiteralPath $outputRoot -File -Filter "*.png" |
+  Remove-Item -Force
+
 foreach ($layout in $layouts) {
   foreach ($viewport in $viewports) {
     $fileName = "{0}-{1}.png" -f $layout, $viewport.Name
