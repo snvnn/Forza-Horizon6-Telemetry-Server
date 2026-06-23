@@ -2974,6 +2974,10 @@ h1 {
     border-left: 1px solid #26313c;
   }
 
+  .race-column:last-child .race-panel {
+    min-width: 0;
+  }
+
   .race-center-cluster {
     grid-column: 1 / -1;
     grid-row: 1;
@@ -3040,19 +3044,29 @@ h1 {
 
   .race-gforce {
     grid-template-columns: 1fr;
+    justify-items: stretch;
     gap: 2px;
+    width: 100%;
+    min-width: 0;
   }
 
   .race-gforce-meter {
+    display: grid;
+    justify-items: start;
+    width: 100%;
     min-height: 112px;
+    overflow: visible;
+    padding-left: 8px;
   }
 
   .race-gforce-meter svg {
-    width: min(100%, 108px);
+    width: min(78%, 96px);
+    justify-self: start;
   }
 
   .race-gforce-values {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
   }
 
   .race-gforce-values .race-metric,
@@ -3060,8 +3074,16 @@ h1 {
     min-height: 25px;
   }
 
+  .race-gforce-panel {
+    overflow: visible;
+  }
+
   .race-power-grid {
     grid-template-columns: 1fr;
+  }
+
+  .race-motion-row {
+    width: 100%;
   }
 
   .race-motion-row .race-motion-cell {
