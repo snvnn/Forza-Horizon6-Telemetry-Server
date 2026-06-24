@@ -1039,7 +1039,7 @@ function MobileRaceDashboard({
       <header className="mobile-race-topbar">
         <div className="mobile-race-title">
           <span>FH6</span>
-          <strong>LANDSCAPE RACE</strong>
+          <strong>RACE HUD</strong>
         </div>
         <div className="mobile-race-status">
           <MobileRaceStat

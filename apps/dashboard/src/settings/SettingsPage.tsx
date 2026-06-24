@@ -24,7 +24,7 @@ const DASHBOARD_LAYOUT_LABELS: Record<ServerConfig["dashboardLayout"], string> =
   race: "GT / Race Dash",
   "time-attack": "Time Attack",
   engineer: "Telemetry Engineer",
-  "mobile-race": "Mobile Landscape Race",
+  "mobile-race": "Mobile Race HUD",
   minimal: "Minimal HUD",
   gforce: "G-Force Focus"
 };
@@ -33,7 +33,7 @@ const DASHBOARD_LAYOUT_DESCRIPTIONS: Record<ServerConfig["dashboardLayout"], str
   race: "Default motorsport screen for speed, gear, tires, inputs, and G-force.",
   "time-attack": "Lap-focused screen for current lap, delta, best lap, and key driving inputs.",
   engineer: "Dense validation screen for packet, vehicle, tire, powertrain, and motion values.",
-  "mobile-race": "Compact landscape screen for phones with tires/race info, gear, speed, and G-force.",
+  "mobile-race": "Compact phone/tablet screen with tires/race info, gear, speed, and G-force.",
   minimal: "Low-distraction auxiliary display with large gear, speed, RPM, and warnings.",
   gforce: "Load-transfer display centered on the G-force meter and acceleration values."
 };
