@@ -30,12 +30,12 @@ const DASHBOARD_LAYOUT_LABELS: Record<ServerConfig["dashboardLayout"], string> =
 };
 
 const DASHBOARD_LAYOUT_DESCRIPTIONS: Record<ServerConfig["dashboardLayout"], string> = {
-  race: "Default motorsport screen for speed, gear, tires, inputs, and G-force.",
-  "time-attack": "Lap-focused screen for current lap, delta, best lap, and key driving inputs.",
-  engineer: "Dense validation screen for packet, vehicle, tire, powertrain, and motion values.",
-  "mobile-race": "Compact phone/tablet screen with tires/race info, gear, speed, and G-force.",
-  minimal: "Low-distraction auxiliary display with large gear, speed, RPM, and warnings.",
-  gforce: "Load-transfer display centered on the G-force meter and acceleration values."
+  race: "Speed, gear, tires, inputs, and G-force.",
+  "time-attack": "Delta, best lap, and driving inputs.",
+  engineer: "Packet, powertrain, tire, and motion checks.",
+  "mobile-race": "Compact phone/tablet race view.",
+  minimal: "Large gear, speed, RPM, and warnings.",
+  gforce: "G-force and acceleration focus."
 };
 
 function dashboardLayoutLabel(layout: ServerConfig["dashboardLayout"]): string {
