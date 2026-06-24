@@ -2941,7 +2941,7 @@ h1 {
 
   .race-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: minmax(174px, 0.34fr) minmax(0, 0.66fr);
+    grid-template-rows: minmax(150px, 0.29fr) minmax(0, 0.71fr);
     height: 100%;
     min-height: 0;
     overflow: hidden;
@@ -2998,15 +2998,15 @@ h1 {
   }
 
   .race-gear-block strong {
-    font-size: clamp(4.4rem, 20vw, 5.6rem);
+    font-size: clamp(4rem, 18vw, 5.15rem);
   }
 
   .race-speed-block {
-    padding: 20px 4px 7px;
+    padding: 18px 4px 6px;
   }
 
   .race-speed-block strong {
-    font-size: clamp(2.55rem, 13vw, 3.25rem);
+    font-size: clamp(2.35rem, 12vw, 3rem);
   }
 
   .race-rpm-number {
