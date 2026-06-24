@@ -5814,7 +5814,11 @@ h1 {
   }
 
   .gfocus-topbar {
-    min-height: 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: stretch;
+    min-height: 52px;
     padding: 2px 0 4px;
   }
 
@@ -5827,12 +5831,25 @@ h1 {
   }
 
   .gfocus-status {
-    grid-auto-columns: minmax(60px, auto);
+    display: grid;
+    grid-template-columns: 82px;
+    min-width: 0;
   }
 
   .gfocus-status .gfocus-stat {
-    min-height: 28px;
-    padding: 3px 5px;
+    display: grid;
+    align-content: center;
+    min-height: 24px;
+    padding: 2px 6px;
+    border-left-width: 3px;
+  }
+
+  .gfocus-status .gfocus-stat span {
+    font-size: 0.54rem;
+  }
+
+  .gfocus-status .gfocus-stat strong {
+    font-size: 0.78rem;
   }
 
   .gfocus-status .gfocus-stat:nth-child(n + 2) {
