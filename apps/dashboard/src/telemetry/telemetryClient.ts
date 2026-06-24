@@ -104,7 +104,7 @@ export class TelemetryClient {
     }
 
     // Estimate server-client clock offset from the midpoint of the HTTP round trip.
-    // This removes tablet/PC wall-clock drift from Age without changing telemetry timestamps.
+    // This removes tablet/PC wall-clock offset from Age without changing telemetry timestamps.
     const clientMidpointMs = (requestClientTimeMs + responseClientTimeMs) / 2;
     const measuredOffsetMs = serverTimeMs - clientMidpointMs;
     this.metrics.serverClockOffsetMs =
