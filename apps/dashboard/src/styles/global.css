@@ -5887,8 +5887,8 @@ h1 {
   }
 
   .minimal-main {
-    grid-template-columns: minmax(118px, 0.62fr) minmax(0, 1.38fr);
-    grid-template-rows: minmax(0, 1.22fr) minmax(0, 0.78fr);
+    grid-template-columns: minmax(104px, 0.5fr) minmax(0, 1.5fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 0.72fr);
   }
 
   .minimal-gear,
@@ -5905,11 +5905,11 @@ h1 {
   }
 
   .minimal-gear strong {
-    font-size: clamp(5rem, 24vw, 7rem);
+    font-size: clamp(5.4rem, 26vw, 7.4rem);
   }
 
   .minimal-speed strong {
-    font-size: clamp(4.9rem, 23vw, 6.7rem);
+    font-size: clamp(5.8rem, 28vw, 7.9rem);
   }
 
   .minimal-speed em {
@@ -5917,7 +5917,7 @@ h1 {
   }
 
   .minimal-rpm strong {
-    font-size: clamp(2.45rem, 12vw, 3.4rem);
+    font-size: clamp(2.8rem, 13vw, 3.8rem);
   }
 
   .minimal-footer {
