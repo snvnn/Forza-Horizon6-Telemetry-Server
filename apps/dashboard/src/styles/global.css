@@ -787,6 +787,10 @@ h1 {
   border-left-color: #38bdf8;
 }
 
+.settings-layout-card > div:not(.settings-layout-actions) {
+  min-width: 0;
+}
+
 .settings-layout-preview {
   position: relative;
   min-width: 0;
@@ -945,6 +949,7 @@ h1 {
   font-size: 0.72rem;
   font-weight: 750;
   line-height: 1.28;
+  overflow-wrap: anywhere;
 }
 
 .settings-layout-actions {
@@ -1247,7 +1252,10 @@ h1 {
   }
 
   .settings-shell {
+    width: 100%;
+    max-width: 100%;
     padding: 12px;
+    overflow: hidden;
   }
 
   .settings-header,
@@ -1260,6 +1268,31 @@ h1 {
   .settings-form-grid,
   .settings-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .settings-panel {
+    padding: 12px;
+  }
+
+  .settings-layout-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .settings-layout-preview {
+    width: 100%;
+    max-width: 124px;
+    min-height: 58px;
+  }
+
+  .settings-layout-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .settings-layout-actions button {
+    width: 100%;
   }
 
   .settings-actions,
