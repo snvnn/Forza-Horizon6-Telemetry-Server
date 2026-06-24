@@ -3176,13 +3176,13 @@ h1 {
     display: grid;
     justify-items: start;
     width: 100%;
-    min-height: 112px;
+    min-height: 116px;
     overflow: visible;
     padding-left: 8px;
   }
 
   .race-gforce-meter svg {
-    width: min(78%, 96px);
+    width: min(calc(100% - 12px), 106px);
     justify-self: start;
   }
 
