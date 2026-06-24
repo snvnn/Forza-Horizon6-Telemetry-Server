@@ -46,6 +46,19 @@ function Get-StatusUrl {
   }
 }
 
+function Get-SettingsUrl {
+  param(
+    [string]$BaseUrl
+  )
+
+  try {
+    $uri = [System.Uri]$BaseUrl
+    return "{0}://{1}/settings" -f $uri.Scheme, $uri.Authority
+  } catch {
+    return $null
+  }
+}
+
 function Test-TelemetryStatus {
   param(
     [string]$BaseUrl,
@@ -123,11 +136,28 @@ New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 Get-ChildItem -LiteralPath $outputRoot -File -Filter "*.png" |
   Remove-Item -Force
 
+$auditPages = @()
 foreach ($layout in $layouts) {
+  $auditPages += @{
+    Name = $layout
+    Url = Get-DashboardUrl -BaseUrl $BaseDashboardUrl -Layout $layout
+  }
+}
+
+$settingsUrl = Get-SettingsUrl -BaseUrl $BaseDashboardUrl
+if ($settingsUrl) {
+  $auditPages += @{
+    Name = "settings"
+    Url = $settingsUrl
+  }
+} else {
+  Write-Warning "Could not derive /settings URL from '$BaseDashboardUrl'. Settings page screenshots will be skipped."
+}
+
+foreach ($page in $auditPages) {
   foreach ($viewport in $viewports) {
-    $fileName = "{0}-{1}.png" -f $layout, $viewport.Name
+    $fileName = "{0}-{1}.png" -f $page.Name, $viewport.Name
     $shotPath = Join-Path $outputRoot $fileName
-    $url = Get-DashboardUrl -BaseUrl $BaseDashboardUrl -Layout $layout
 
     & $EdgePath `
       --headless=new `
@@ -136,7 +166,7 @@ foreach ($layout in $layouts) {
       "--window-size=$($viewport.Width),$($viewport.Height)" `
       "--virtual-time-budget=$VirtualTimeBudgetMs" `
       "--screenshot=$shotPath" `
-      $url | Out-Null
+      $page.Url | Out-Null
   }
 }
 
@@ -146,7 +176,7 @@ $thumbWidth = 420
 $thumbHeight = 236
 $labelHeight = 30
 $columns = $viewports.Count
-$rows = $layouts.Count
+$rows = $auditPages.Count
 $sheetWidth = $thumbWidth * $columns
 $sheetHeight = ($thumbHeight + $labelHeight) * $rows
 $sheet = New-Object System.Drawing.Bitmap $sheetWidth, $sheetHeight
@@ -157,15 +187,15 @@ $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
 try {
   $graphics.Clear([System.Drawing.Color]::FromArgb(5, 6, 7))
 
-  for ($row = 0; $row -lt $layouts.Count; $row++) {
-    $layout = $layouts[$row]
+  for ($row = 0; $row -lt $auditPages.Count; $row++) {
+    $page = $auditPages[$row]
 
     for ($column = 0; $column -lt $viewports.Count; $column++) {
       $viewport = $viewports[$column]
       $x = $column * $thumbWidth
       $y = $row * ($thumbHeight + $labelHeight)
-      $label = "{0} - {1}" -f $layout, $viewport.Name
-      $shotPath = Join-Path $outputRoot ("{0}-{1}.png" -f $layout, $viewport.Name)
+      $label = "{0} - {1}" -f $page.Name, $viewport.Name
+      $shotPath = Join-Path $outputRoot ("{0}-{1}.png" -f $page.Name, $viewport.Name)
 
       $graphics.DrawString($label, $font, $brush, $x + 8, $y + 5)
       Draw-ImageFit `
@@ -180,7 +210,7 @@ try {
 
   $sheetPath = Join-Path $outputRoot "layout-audit-contact-sheet.png"
   $sheet.Save($sheetPath, [System.Drawing.Imaging.ImageFormat]::Png)
-  Write-Output "Dashboard layout audit screenshots written to: $outputRoot"
+  Write-Output "Dashboard and settings audit screenshots written to: $outputRoot"
   Write-Output "Contact sheet: $sheetPath"
 } finally {
   $brush.Dispose()
