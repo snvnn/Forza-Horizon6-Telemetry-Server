@@ -4068,6 +4068,41 @@ h1 {
     border-right: 0;
   }
 
+  .time-attack-dashboard.ta-no-timing .ta-layout {
+    grid-template-rows: minmax(228px, 0.36fr) minmax(0, 0.64fr);
+  }
+
+  .time-attack-dashboard.ta-no-timing .ta-main {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 21px 48px 54px minmax(72px, 1fr);
+  }
+
+  .time-attack-dashboard.ta-no-timing .ta-status-line {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .time-attack-dashboard.ta-no-timing .ta-delta {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .time-attack-dashboard.ta-no-timing .ta-current-lap {
+    grid-column: 2;
+    grid-row: 2;
+    border-left: 1px solid #26313c;
+  }
+
+  .time-attack-dashboard.ta-no-timing .ta-lap-row {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .time-attack-dashboard.ta-no-timing .ta-car-strip {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+
   .ta-status-line {
     min-height: 22px;
     padding: 0 2px 3px;
@@ -4162,6 +4197,14 @@ h1 {
     border-top: 1px solid #26313c;
   }
 
+  .time-attack-dashboard.ta-no-timing .ta-side {
+    grid-template-rows: 74px minmax(110px, 0.48fr) minmax(132px, 0.52fr);
+  }
+
+  .time-attack-dashboard.ta-no-timing .ta-panel {
+    align-content: start;
+  }
+
   .ta-panel {
     gap: 3px;
     min-width: 0;
@@ -4215,12 +4258,31 @@ h1 {
   }
 
   .ta-side .race-input-row {
-    min-height: 18px;
-    padding: 2px 0;
+    grid-template-columns: 42px 50px minmax(0, 1fr);
+    grid-template-rows: auto 8px;
+    gap: 2px 4px;
+    min-height: 28px;
+    padding: 2px 0 4px;
   }
 
   .ta-side .race-input-row span {
     font-size: 0.43rem;
+  }
+
+  .ta-side .race-input-track,
+  .ta-side .race-steer-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .ta-side .race-input-row strong {
+    display: block;
+    width: auto;
+    color: #f8fafc;
+    font-size: 0.82rem;
+    line-height: 1.05;
+    text-align: left;
+    visibility: visible;
   }
 
   .ta-gforce {
