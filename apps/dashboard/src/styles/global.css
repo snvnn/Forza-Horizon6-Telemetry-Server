@@ -721,6 +721,15 @@ h1 {
   border-bottom: 1px solid #29313a;
 }
 
+.settings-header h1,
+.settings-shell > h1 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  font-weight: 950;
+  line-height: 0.95;
+}
+
 .settings-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1277,13 +1286,13 @@ h1 {
   .settings-layout-card {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
-    padding: 8px;
+    padding: 7px;
   }
 
   .settings-layout-preview {
     width: 100%;
-    max-width: 124px;
-    min-height: 58px;
+    max-width: 116px;
+    min-height: 54px;
   }
 
   .settings-layout-actions {
@@ -1323,6 +1332,86 @@ h1 {
 
   .gforce-axis-label {
     font-size: 0.68rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 950px) {
+  .settings-stage {
+    padding: 6px;
+  }
+
+  .settings-shell {
+    padding: 10px;
+    border-width: 1px;
+  }
+
+  .settings-header {
+    padding-bottom: 8px;
+  }
+
+  .settings-header h1 {
+    font-size: 1.65rem;
+  }
+
+  .settings-actions button,
+  .settings-panel-heading button,
+  .settings-layout-actions button {
+    min-height: 32px;
+    padding: 6px 10px;
+  }
+
+  .settings-grid,
+  .settings-panel,
+  .settings-layout-gallery,
+  .settings-form-grid {
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .settings-panel {
+    padding: 10px;
+    border-width: 1px;
+  }
+
+  .settings-panel h2 {
+    font-size: 0.86rem;
+  }
+
+  .settings-layout-card {
+    grid-template-columns: 64px minmax(0, 1fr) 150px;
+    gap: 7px;
+    align-items: center;
+    padding: 6px;
+    border-left-width: 2px;
+  }
+
+  .settings-layout-preview {
+    min-height: 46px;
+  }
+
+  .settings-layout-card strong {
+    margin-top: 1px;
+    font-size: 0.82rem;
+  }
+
+  .settings-layout-card p {
+    margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .settings-layout-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .settings-layout-actions button {
+    min-width: 0;
+    padding-right: 6px;
+    padding-left: 6px;
+    font-size: 0.78rem;
+    line-height: 1;
   }
 }
 
