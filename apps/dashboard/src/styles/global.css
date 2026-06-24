@@ -3518,6 +3518,37 @@ h1 {
   border-right: 1px solid #26313c;
 }
 
+.time-attack-dashboard.ta-no-timing .ta-main {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto minmax(82px, 0.28fr) minmax(70px, 0.2fr) minmax(0, 1fr);
+}
+
+.time-attack-dashboard.ta-no-timing .ta-status-line {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.time-attack-dashboard.ta-no-timing .ta-delta {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.time-attack-dashboard.ta-no-timing .ta-current-lap {
+  grid-column: 2;
+  grid-row: 2;
+  border-left: 1px solid #26313c;
+}
+
+.time-attack-dashboard.ta-no-timing .ta-lap-row {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.time-attack-dashboard.ta-no-timing .ta-car-strip {
+  grid-column: 1 / -1;
+  grid-row: 4;
+}
+
 .ta-status-line {
   display: flex;
   align-items: center;
