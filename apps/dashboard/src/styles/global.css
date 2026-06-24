@@ -5758,6 +5758,100 @@ h1 {
   }
 }
 
+@media (orientation: portrait) and (max-width: 520px) {
+  .minimal-dashboard {
+    padding: 6px 8px;
+  }
+
+  .minimal-topbar {
+    gap: 6px;
+    min-height: 46px;
+    padding: 2px 0 4px;
+  }
+
+  .minimal-brand span {
+    font-size: 0.54rem;
+  }
+
+  .minimal-brand strong {
+    font-size: 1.28rem;
+    white-space: normal;
+  }
+
+  .minimal-status {
+    grid-auto-columns: minmax(58px, auto);
+  }
+
+  .minimal-status .minimal-stat:nth-child(n + 3) {
+    display: none;
+  }
+
+  .minimal-status .minimal-stat {
+    min-height: 30px;
+    padding: 3px 5px;
+  }
+
+  .minimal-dashboard .race-shift-rail {
+    min-height: 13px;
+    margin: 0;
+    padding: 2px 0;
+  }
+
+  .minimal-main {
+    grid-template-columns: minmax(118px, 0.62fr) minmax(0, 1.38fr);
+    grid-template-rows: minmax(0, 1.22fr) minmax(0, 0.78fr);
+  }
+
+  .minimal-gear,
+  .minimal-speed,
+  .minimal-rpm {
+    padding: 6px 10px;
+  }
+
+  .minimal-gear span,
+  .minimal-speed span,
+  .minimal-rpm span,
+  .minimal-stat span {
+    font-size: 0.52rem;
+  }
+
+  .minimal-gear strong {
+    font-size: clamp(5rem, 24vw, 7rem);
+  }
+
+  .minimal-speed strong {
+    font-size: clamp(4.9rem, 23vw, 6.7rem);
+  }
+
+  .minimal-speed em {
+    font-size: 0.72rem;
+  }
+
+  .minimal-rpm strong {
+    font-size: clamp(2.45rem, 12vw, 3.4rem);
+  }
+
+  .minimal-footer {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .minimal-stat {
+    min-height: 32px;
+    padding: 4px 6px;
+  }
+
+  .minimal-stat strong {
+    margin-top: 1px;
+    font-size: 0.72rem;
+  }
+
+  .minimal-stat em {
+    margin-left: 2px;
+    font-size: 0.42rem;
+  }
+}
+
 .gfocus-dashboard {
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 0;
