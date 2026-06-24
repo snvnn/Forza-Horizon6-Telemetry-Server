@@ -4229,7 +4229,7 @@ h1 {
   }
 
   .time-attack-dashboard.ta-no-timing .ta-side {
-    grid-template-rows: 74px minmax(110px, 0.48fr) minmax(132px, 0.52fr);
+    grid-template-rows: 70px 160px minmax(0, 1fr);
   }
 
   .time-attack-dashboard.ta-no-timing .ta-panel {
@@ -4317,18 +4317,19 @@ h1 {
   }
 
   .ta-gforce {
-    grid-template-columns: minmax(92px, 0.32fr) minmax(0, 1fr);
-    align-items: center;
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 4px;
   }
 
   .ta-gforce svg {
-    width: min(100%, 92px);
+    width: min(42vw, 142px);
     justify-self: center;
   }
 
   .ta-gforce-values {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
   }
 
   .ta-gforce-values .ta-metric {
